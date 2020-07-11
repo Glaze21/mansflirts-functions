@@ -1,30 +1,35 @@
 const functions = require('firebase-functions');
-const admin = require("firebase-admin") 
+const admin = require("firebase-admin");
 
 admin.initializeApp();
 
-exports.helloWorld = functions.https.onRequest((request, response) => {
-  functions.logger.info("Hello logs!", {structuredData: true});
-  response.send("Hello World!");
-});
+const express = require("express");
+const app = express();
 
-exports.getSnippets = functions.https.onRequest((req, res) => {
-  admin.firestore().collection("snippets").get()
+app.get("/snippets", (req,res) => {
+  admin
+    .firestore()
+    .collection("snippets")
+    .orderBy("createdAt", "desc")
+    .get()
     .then(data => {
       let snippets = []
       data.forEach(doc => {
-         snippets.push(doc.data());
+         snippets.push({
+           screamId: doc.id,
+           ...doc.data()
+         });
       });
       return res.json(snippets);
     })
     .catch(err => console.error(err));
 })
 
-exports.createSnippet = functions.https.onRequest((req, res) => {
+app.post("/snippet", (req, res) => {
   const newSnippet = {
-    body: req.body.body,
-    userHandle: req.body.userHandle,
-    createdAt: admin.firestore.Timestamp.fromDate(new Date())
+  body: req.body.body,
+  userHandle: req.body.userHandle,
+  createdAt: new Date().toISOString()
   };
 
   admin
@@ -39,3 +44,5 @@ exports.createSnippet = functions.https.onRequest((req, res) => {
       console.error(err); 
     });
 });
+
+exports.api = functions.region("europe-west1").https.onRequest(app);
