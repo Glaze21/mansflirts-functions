@@ -1,5 +1,6 @@
 const { db } = require("../util/admin");
 
+// Display all snippets in database
 exports.getAllSnippets = (req, res) => {
   db.collection("snippets")
     .orderBy("createdAt", "desc")
@@ -19,7 +20,7 @@ exports.getAllSnippets = (req, res) => {
       res.status(500).json({ error: err.code });
     });
 };
-
+// Post a snippet
 exports.postOneSnippet = (req, res) => {
   if (req.body.body.trim() === "") {
     return res.status(400).json({ body: "Body must not be empty" });
