@@ -1,5 +1,6 @@
 const { admin, db } = require("./admin");
 
+// Authentication so we know the request comes from a user in our website via a token
 module.exports = (req, res, next) => {
   let idToken;
   if (

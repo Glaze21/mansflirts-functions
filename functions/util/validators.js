@@ -1,14 +1,15 @@
+// Checks if email is valid
 const isEmail = (email) => {
   const regEx = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   if (email.match(regEx)) return true;
   else return false;
 };
-
+// Checks if string is empty
 const isEmpty = (string) => {
   if (string.trim() === "") return true;
   else return false;
 };
-
+// Validates Signup info
 exports.validateSignupData = (data) => {
   let errors = {};
 
@@ -24,7 +25,7 @@ exports.validateSignupData = (data) => {
     valid: Object.keys(errors).length === 0 ? true : false,
   };
 };
-
+// Validates Login info
 exports.validateLoginData = (data) => {
   let errors = {};
 
@@ -36,17 +37,16 @@ exports.validateLoginData = (data) => {
     valid: Object.keys(errors).length === 0 ? true : false,
   };
 };
-
+// Removes user detail if it's empty and add's https to websites
 exports.reduceUserDetails = (data) => {
   let userDetails = {};
 
   if (!isEmpty(data.bio.trim())) userDetails.bio = data.bio;
+  if (!isEmpty(data.location.trim())) userDetails.location = data.location;
   if (!isEmpty(data.website.trim())) {
     if (data.website.trim().substring(0, 4) !== "http") {
       userDetails.website = `http://${data.website.trim()}`;
     } else userDetails.website = data.website;
   }
-  if (!isEmpty(data.location.trim())) userDetails.location = data.location;
-
   return userDetails;
 };
