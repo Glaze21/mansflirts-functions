@@ -6,19 +6,26 @@ const isEmail = (email) => {
 };
 // Checks if string is empty
 const isEmpty = (string) => {
-  if (string.trim() === "") return true;
+  if (string === undefined) return true;
+  else if (string.trim() === "") return true;
   else return false;
 };
 // Validates Signup info
-exports.validateSignupData = (data) => {
+exports.validateSignupData = (data, age) => {
   let errors = {};
 
-  if (isEmpty(data.email)) errors.email = "Must not be empty";
-  else if (!isEmail(data.email)) errors.email = "Must be a valid email adress";
-  if (isEmpty(data.password)) errors.password = "Must not be empty";
+  if (isEmpty(data.email)) errors.email = "Lauks nedrīkst būt tukšs";
+  else if (!isEmail(data.email)) errors.email = "Jābūt derīgai e-pasta adresei";
+  if (isEmpty(data.password)) errors.password = "Lauks nedrīkst būt tukšs";
   if (data.password !== data.confirmPassword)
-    errors.confirmPassword = "Passwords must match";
-  if (isEmpty(data.handle)) errors.handle = "Must not be empty";
+    errors.confirmPassword = "Parolēm jābūt vienādām";
+  if (isEmpty(data.handle)) errors.handle = "Lauks nedrīkst būt tukšs";
+  if (isEmpty(data.gender)) errors.gender = "Izvēlieties dzimumu";
+  if (isEmpty(data.day) || isEmpty(data.month) || isEmpty(data.year))
+    errors.day = "Nederīgs dzimšanas datums";
+  if (data.checkedB === false)
+    errors.checkedB = "Jums jāpiekrīt lietošanas noteikumiem";
+  if (age < 18) errors.day = "Jums jābūt vismaz 18 gadus vecam";
 
   return {
     errors,
@@ -29,24 +36,27 @@ exports.validateSignupData = (data) => {
 exports.validateLoginData = (data) => {
   let errors = {};
 
-  if (isEmpty(data.email)) errors.email = "Must not be empty";
-  if (isEmpty(data.password)) errors.password = "Must not be empty";
+  if (isEmpty(data.email)) errors.email = "Lauks nedrīkst būt tukšs";
+  if (isEmpty(data.password)) errors.password = "Lauks nedrīkst būt tukšs";
 
   return {
     errors,
     valid: Object.keys(errors).length === 0 ? true : false,
   };
 };
-// Removes user detail if it's empty and add's https to websites
+// Removes user detail if it's empty
 exports.reduceUserDetails = (data) => {
   let userDetails = {};
 
-  if (!isEmpty(data.bio.trim())) userDetails.bio = data.bio;
-  if (!isEmpty(data.location.trim())) userDetails.location = data.location;
-  if (!isEmpty(data.website.trim())) {
-    if (data.website.trim().substring(0, 4) !== "http") {
-      userDetails.website = `http://${data.website.trim()}`;
-    } else userDetails.website = data.website;
-  }
+  if (!isEmpty(data.handle)) userDetails.handle = data.handle;
+  if (!isEmpty(data.bio)) userDetails.bio = data.bio;
+  if (!isEmpty(data.location)) userDetails.location = data.location;
+  if (!isEmpty(data.education)) userDetails.education = data.education;
+  if (!isEmpty(data.work)) userDetails.work = data.work;
+  if (!isEmpty(data.drink)) userDetails.drink = data.drink;
+  if (!isEmpty(data.smoke)) userDetails.smoke = data.smoke;
+  if (!isEmpty(data.height)) userDetails.height = data.height;
+  if (!isEmpty(data.idealPartner)) userDetails.idealPartner = data.idealPartner;
+
   return userDetails;
 };
