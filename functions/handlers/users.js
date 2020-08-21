@@ -1,13 +1,15 @@
 const { admin, db } = require("../util/admin");
 const config = require("../util/config");
+const { v4: uuidv4 } = require("uuid");
 const firebase = require("firebase");
+
+firebase.initializeApp(config);
+
 const {
   validateSignupData,
   validateLoginData,
   reduceUserDetails,
 } = require("../util/validators");
-
-firebase.initializeApp(config);
 
 let userId;
 
@@ -89,7 +91,7 @@ exports.signup = (req, res) => {
       }
     });
 };
-
+// Google signup
 exports.signupGoogle = (req, res) => {
   var credential = firebase.auth.GoogleAuthProvider.credential(
     req.body.id_token
@@ -137,6 +139,7 @@ exports.signupGoogle = (req, res) => {
       }
     });
 };
+// Facebook signup
 exports.signupFB = (req, res) => {
   var credential = firebase.auth.FacebookAuthProvider.credential(
     req.body.id_token
@@ -184,7 +187,6 @@ exports.signupFB = (req, res) => {
       }
     });
 };
-
 // Login user
 exports.login = (req, res) => {
   const user = {
@@ -243,6 +245,7 @@ exports.getUserDetails = (req, res) => {
       return res.status(500).json({ error: err.code });
     });
 };
+// Display all users in home
 exports.getAllUsers = (req, res) => {
   db.collection("users")
     .orderBy("createdAt", "desc")
@@ -256,9 +259,42 @@ exports.getAllUsers = (req, res) => {
           handle: doc.data().handle,
           age: doc.data().age,
           location: doc.data().location,
+          isLoggedIn: doc.data().isLoggedIn,
         });
       });
       return res.json(userData);
+    });
+};
+// Filters users in home
+exports.filterUsers = (req, res) => {
+  let query = db
+    .collection("users")
+    .where("gender", "==", req.body.gender)
+    .where("age", "<=", req.body.maxAge)
+    .where("age", ">=", req.body.minAge);
+
+  if (req.body.city !== "") {
+    query = query.where("location", "==", req.body.city);
+  }
+  query
+    .get()
+    .then((data) => {
+      let userData = [];
+      data.forEach((doc) => {
+        userData.push({
+          userId: doc.id,
+          imageUrl: doc.data().imageUrl,
+          handle: doc.data().handle,
+          age: doc.data().age,
+          location: doc.data().location,
+          isLoggedIn: doc.data().isLoggedIn,
+        });
+      });
+      return res.json(userData);
+    })
+    .catch((err) => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
     });
 };
 // Get own user details
@@ -286,19 +322,22 @@ exports.uploadImage = (req, res) => {
 
   const busboy = new BusBoy({ headers: req.headers });
 
-  let imageFileName;
   let imageToBeUploaded = {};
+  let imageFileName;
+  // String for image token
+  let generatedToken = uuidv4();
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
+    console.log(fieldname, file, filename, encoding, mimetype);
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
       return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
     }
-    // image.png
+    // my.image.png => ['my', 'image', 'png']
     const imageExtension = filename.split(".")[filename.split(".").length - 1];
-    // 123456789.png
+    // 32756238461724837.png
     imageFileName = `${Math.round(
-      Math.random() * 10000000000
-    )}.${imageExtension}`;
+      Math.random() * 1000000000000
+    ).toString()}.${imageExtension}`;
     const filepath = path.join(os.tmpdir(), imageFileName);
     imageToBeUploaded = { filepath, mimetype };
     file.pipe(fs.createWriteStream(filepath));
@@ -312,12 +351,15 @@ exports.uploadImage = (req, res) => {
         metadata: {
           metadata: {
             contentType: imageToBeUploaded.mimetype,
+            //Generate token to be appended to imageUrl
+            firebaseStorageDownloadTokens: generatedToken,
           },
         },
       })
       .then(() => {
-        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media`;
-        return db.doc(`/users/${userId}`).update({ imageUrl });
+        // Append token to url
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media&token=${generatedToken}`;
+        return db.doc(`/users/${req.user.userId}`).update({ imageUrl });
       })
       .then(() => {
         return res.json({ message: "Attēls veiksmīgi augšupielādēts" });
@@ -328,4 +370,103 @@ exports.uploadImage = (req, res) => {
       });
   });
   busboy.end(req.rawBody);
+};
+// Add user photos
+exports.addPhotos = (req, res) => {
+  const FieldValue = admin.firestore.FieldValue;
+  const BusBoy = require("busboy");
+  const path = require("path");
+  const os = require("os");
+  const fs = require("fs");
+
+  const busboy = new BusBoy({ headers: req.headers });
+
+  let imageToBeUploaded = {};
+  let imageFileName;
+  // String for image token
+  let generatedToken = uuidv4();
+
+  busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
+    console.log(fieldname, file, filename, encoding, mimetype);
+    if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
+      return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
+    }
+    // my.image.png => ['my', 'image', 'png']
+    const imageExtension = filename.split(".")[filename.split(".").length - 1];
+    // 32756238461724837.png
+    imageFileName = `${Math.round(
+      Math.random() * 1000000000000
+    ).toString()}.${imageExtension}`;
+    const filepath = path.join(os.tmpdir(), imageFileName);
+    imageToBeUploaded = { filepath, mimetype };
+    file.pipe(fs.createWriteStream(filepath));
+  });
+  busboy.on("finish", () => {
+    admin
+      .storage()
+      .bucket()
+      .upload(imageToBeUploaded.filepath, {
+        resumable: false,
+        metadata: {
+          metadata: {
+            contentType: imageToBeUploaded.mimetype,
+            //Generate token to be appended to imageUrl
+            firebaseStorageDownloadTokens: generatedToken,
+          },
+        },
+      })
+      .then(() => {
+        // Append token to url
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media&token=${generatedToken}`;
+        return db.doc(`/users/${req.user.userId}`).update({
+          userImages: FieldValue.arrayUnion(imageUrl),
+        });
+      })
+      .then(() => {
+        return res.json({ message: "Attēls veiksmīgi augšupielādēts" });
+      })
+      .catch((err) => {
+        console.error(err);
+        return res.status(500).json({ error: "Kaut kas nogāja greizi" });
+      });
+  });
+  busboy.end(req.rawBody);
+};
+exports.removeImage = (req, res) => {
+  const FieldValue = admin.firestore.FieldValue;
+  const link = req.body.link;
+  db.doc(`/users/${req.user.userId}`)
+    .update({
+      userImages: FieldValue.arrayRemove(link),
+    })
+    .then(() => {
+      return res.json({ message: "Photo removed successfully" });
+    })
+    .catch((err) => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
+};
+// Logs the user out the clean way
+exports.logout = (req, res) => {
+  var uid = firebase.auth().currentUser.uid;
+
+  var userStatusDatabaseRef = firebase.database().ref("/status/" + uid);
+  var isOfflineForDatabase = {
+    state: "offline",
+    last_active: firebase.database.ServerValue.TIMESTAMP,
+  };
+
+  var userStatusFirestoreRef = firebase.firestore().doc("/status/" + uid);
+  var isOfflineForFirestore = {
+    state: "offline",
+    last_active: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  // userStatusDatabaseRef.onDisconnect().cancel();
+
+  userStatusFirestoreRef.set(isOfflineForFirestore);
+  userStatusDatabaseRef.set(isOfflineForDatabase);
+
+  return res.json({ message: "Izrakstijāties veiksmīgi!" });
 };
