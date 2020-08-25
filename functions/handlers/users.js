@@ -11,10 +11,18 @@ const {
   reduceUserDetails,
 } = require("../util/validators");
 
-let userId;
+function getAge(day, month, year) {
+  let today = new Date();
+  let age = today.getFullYear() - year;
+  let m = today.getMonth() - month;
+  if (m < 0 || (m === 0 && today.getDate() < day)) {
+    age--;
+  }
+  return age;
+}
 
-//Signup user
-exports.signup = (req, res) => {
+// Validate newUser
+exports.validUser = (req, res) => {
   const newUser = {
     email: req.body.email,
     password: req.body.password,
@@ -27,92 +35,69 @@ exports.signup = (req, res) => {
     year: req.body.year,
   };
 
-  function getAge() {
-    let today = new Date();
-    let age = today.getFullYear() - newUser.year;
-    let m = today.getMonth() - newUser.month;
-    if (m < 0 || (m === 0 && today.getDate() < newUser.day)) {
-      age--;
-    }
-    return age;
-  }
-
-  const { valid, errors } = validateSignupData(newUser, getAge());
+  const { valid, errors } = validateSignupData(
+    newUser,
+    getAge(newUser.day, newUser.month, newUser.year)
+  );
 
   if (!valid) return res.status(400).json(errors);
 
+  return res.status(201).json({ message: "Viss OK" });
+};
+//Signup user
+exports.signup = (req, res) => {
+  const newUser = {
+    email: req.body.email,
+    password: req.body.password,
+    confirmPassword: req.body.confirmPassword,
+    handle: req.body.handle,
+    gender: req.body.gender,
+    checkedB: req.body.checkedB,
+    day: req.body.day,
+    month: req.body.month,
+    year: req.body.year,
+    userId: req.body.userId,
+  };
   const noImg = "no-img.png";
-
-  let token;
 
   db.collection("users")
     .get()
     .then(() => {
-      return firebase
-        .auth()
-        .createUserWithEmailAndPassword(newUser.email, newUser.password);
-    })
-    .then((data) => {
-      userId = data.user.uid;
-      return data.user.getIdToken();
-    })
-    .then((idToken) => {
-      token = idToken;
       const userCredentials = {
         handle: newUser.handle,
         email: newUser.email,
         createdAt: new Date().toISOString(),
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
-        day: newUser.day,
-        month: newUser.month,
-        year: newUser.year,
-        dob: new Date(
-          newUser.year,
-          newUser.month - 1,
-          newUser.day
-        ).toISOString(),
-        age: getAge(),
-        userId,
+        dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
+        age: getAge(newUser.day, newUser.month, newUser.year),
+        userId: newUser.userId,
       };
-      return db.collection("users").doc(`${userId}`).set(userCredentials);
+      return db
+        .collection("users")
+        .doc(`${newUser.userId}`)
+        .set(userCredentials);
     })
     .then(() => {
-      return res.status(201).json({ token });
+      return res.status(201).json({ message: "Viss OK" });
     })
-    .catch((err) => {
-      console.error(err);
-      if (err.code === "auth/email-already-in-use") {
-        return res.status(400).json({ email: "E-pasts jau tiek izmantots" });
-      } else {
-        return res
-          .status(500)
-          .json({ general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz" });
-      }
+    .catch(() => {
+      return res
+        .status(500)
+        .json({ general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz" });
     });
 };
-// Google signup
-exports.signupGoogle = (req, res) => {
-  var credential = firebase.auth.GoogleAuthProvider.credential(
-    req.body.id_token
-  );
+// Google Facebook signup
+exports.signupGoogleFB = (req, res) => {
   const newUser = {
     email: req.body.email,
     handle: req.body.handle,
+    userId: req.body.userId,
   };
   const noImg = "no-img.png";
-  let token;
   db.collection("users")
     .get()
     .then(() => {
-      return firebase.auth().signInWithCredential(credential);
-    })
-    .then((data) => {
-      userId = firebase.auth().currentUser.uid;
-      return data.user.getIdToken();
-    })
-    .then((idToken) => {
-      token = idToken;
       const userCredentials = {
         handle: newUser.handle,
         email: newUser.email,
@@ -121,60 +106,15 @@ exports.signupGoogle = (req, res) => {
         gender: "gender_",
         dob: "dob_",
         age: "age_",
-        userId,
+        userId: newUser.userId,
       };
-      return db.collection("users").doc(`${userId}`).set(userCredentials);
+      return db
+        .collection("users")
+        .doc(`${newUser.userId}`)
+        .set(userCredentials);
     })
     .then(() => {
-      return res.status(201).json({ token });
-    })
-    .catch((err) => {
-      console.error(err);
-      if (err.code === "auth/email-already-in-use") {
-        return res.status(400).json({ email: "E-pasts jau tiek izmantots" });
-      } else {
-        return res
-          .status(500)
-          .json({ general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz" });
-      }
-    });
-};
-// Facebook signup
-exports.signupFB = (req, res) => {
-  var credential = firebase.auth.FacebookAuthProvider.credential(
-    req.body.id_token
-  );
-  const newUser = {
-    email: req.body.email,
-    handle: req.body.handle,
-  };
-  const noImg = "no-img.png";
-  let token;
-  db.collection("users")
-    .get()
-    .then(() => {
-      return firebase.auth().signInWithCredential(credential);
-    })
-    .then((data) => {
-      userId = firebase.auth().currentUser.uid;
-      return data.user.getIdToken();
-    })
-    .then((idToken) => {
-      token = idToken;
-      const userCredentials = {
-        handle: newUser.handle,
-        email: newUser.email,
-        createdAt: new Date().toISOString(),
-        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
-        gender: "gender_",
-        dob: "dob_",
-        age: "age_",
-        userId,
-      };
-      return db.collection("users").doc(`${userId}`).set(userCredentials);
-    })
-    .then(() => {
-      return res.status(201).json({ token });
+      return res.status(201).json({ message: "Viss OK" });
     })
     .catch((err) => {
       console.error(err);
@@ -195,23 +135,11 @@ exports.login = (req, res) => {
   };
   const { valid, errors } = validateLoginData(user);
 
-  if (!valid) return res.status(400).json(errors);
-
-  firebase
-    .auth()
-    .signInWithEmailAndPassword(user.email, user.password)
-    .then((data) => {
-      return data.user.getIdToken();
-    })
-    .then((token) => {
-      return res.json({ token });
-    })
-    .catch((err) => {
-      console.error(err);
-      return res
-        .status(403)
-        .json({ general: "Nepareizi dati, lūdzu, mēģiniet vēlreiz" });
-    });
+  if (!valid) {
+    return res.status(400).json(errors);
+  } else {
+    res.json({ message: "Viss OK" });
+  }
 };
 // Add user details
 exports.addUserDetails = (req, res) => {
@@ -247,11 +175,11 @@ exports.getUserDetails = (req, res) => {
 };
 // Display all users in home
 exports.getAllUsers = (req, res) => {
+  let userData = [];
   db.collection("users")
     .orderBy("createdAt", "desc")
     .get()
     .then((data) => {
-      let userData = [];
       data.forEach((doc) => {
         userData.push({
           userId: doc.id,
@@ -259,7 +187,7 @@ exports.getAllUsers = (req, res) => {
           handle: doc.data().handle,
           age: doc.data().age,
           location: doc.data().location,
-          isLoggedIn: doc.data().isLoggedIn,
+          state: doc.data().state,
         });
       });
       return res.json(userData);
@@ -328,7 +256,6 @@ exports.uploadImage = (req, res) => {
   let generatedToken = uuidv4();
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
-    console.log(fieldname, file, filename, encoding, mimetype);
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
       return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
     }
@@ -387,7 +314,6 @@ exports.addPhotos = (req, res) => {
   let generatedToken = uuidv4();
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
-    console.log(fieldname, file, filename, encoding, mimetype);
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
       return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
     }

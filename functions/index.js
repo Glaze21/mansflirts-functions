@@ -7,8 +7,7 @@ app.use(cors());
 
 const {
   signup,
-  signupGoogle,
-  signupFB,
+  signupGoogleFB,
   login,
   uploadImage,
   addUserDetails,
@@ -19,12 +18,13 @@ const {
   logout,
   removeImage,
   addPhotos,
+  validUser,
 } = require("./handlers/users");
 
 // Users routes
+app.post("/validUser", validUser);
 app.post("/signup", signup);
-app.post("/signupGoogle", signupGoogle);
-app.post("/signupFB", signupFB);
+app.post("/signupGoogleFB", signupGoogleFB);
 app.post("/login", login);
 app.post("/user/image", FBAuth, uploadImage);
 app.post("/user/addPhotos", FBAuth, addPhotos);
