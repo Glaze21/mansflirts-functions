@@ -52,6 +52,7 @@ exports.signup = (req, res) => {
     confirmPassword: req.body.confirmPassword,
     handle: req.body.handle,
     gender: req.body.gender,
+    lookingFor: req.body.lookingFor,
     checkedB: req.body.checkedB,
     day: req.body.day,
     month: req.body.month,
@@ -69,6 +70,7 @@ exports.signup = (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
+        lookingFor: newUser.lookingFor,
         dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
@@ -107,6 +109,7 @@ exports.signupGoogleFB = (req, res) => {
         dob: "dob_",
         age: "age_",
         userId: newUser.userId,
+        lookingFor: "any",
       };
       return db
         .collection("users")
@@ -175,23 +178,82 @@ exports.getUserDetails = (req, res) => {
 };
 // Display all users in home
 exports.getAllUsers = (req, res) => {
-  let userData = [];
-  db.collection("users")
-    .orderBy("createdAt", "desc")
+  db.doc(`/users/${req.body.uid}`)
     .get()
-    .then((data) => {
-      data.forEach((doc) => {
-        userData.push({
-          userId: doc.id,
-          imageUrl: doc.data().imageUrl,
-          handle: doc.data().handle,
-          age: doc.data().age,
-          location: doc.data().location,
-          state: doc.data().state,
+    .then((doc) => {
+      if (doc.exists) {
+        return doc.data().lookingFor;
+      }
+    })
+    .then((lookingFor) => {
+      let query;
+      if (lookingFor !== "any") {
+        query = db.collection("users").where("gender", "==", lookingFor);
+      } else {
+        query = db.collection("users");
+      }
+      let userData = [];
+      query
+        .orderBy("createdAt", "desc")
+        .get()
+        .then((data) => {
+          data.forEach((doc) => {
+            userData.push({
+              userId: doc.id,
+              imageUrl: doc.data().imageUrl,
+              handle: doc.data().handle,
+              age: doc.data().age,
+              location: doc.data().location,
+              state: doc.data().state,
+            });
+          });
+          return res.json(userData);
         });
-      });
-      return res.json(userData);
     });
+};
+// Display all open chats
+exports.getAllOpenChats = (req, res) => {
+  db.collection("openChats")
+    .doc(`${req.user.userId}`)
+    .get()
+    .then((doc) => {
+      if (doc.exists) {
+        returnOpenChats(doc.data().users2, function (response) {
+          return res.json(response);
+        });
+      } else {
+        return res.json();
+      }
+    });
+};
+returnOpenChats = (users2, callback) => {
+  let query = db.collection("users");
+  if (users2.length !== 0) {
+    query
+      .where("userId", "in", users2)
+      .get()
+      .then((data) => {
+        let userData = [];
+        data.forEach((doc) => {
+          userData.push({
+            userId: doc.id,
+            imageUrl: doc.data().imageUrl,
+            handle: doc.data().handle,
+            age: doc.data().age,
+            location: doc.data().location,
+            state: doc.data().state,
+          });
+        });
+        console.log(userData);
+        callback(userData);
+        return;
+      })
+      .catch((error) => {
+        console.log("Error getting documents: ", error);
+      });
+  } else {
+    return callback();
+  }
 };
 // Filters users in home
 exports.filterUsers = (req, res) => {
@@ -215,7 +277,7 @@ exports.filterUsers = (req, res) => {
           handle: doc.data().handle,
           age: doc.data().age,
           location: doc.data().location,
-          isLoggedIn: doc.data().isLoggedIn,
+          state: doc.data().state,
         });
       });
       return res.json(userData);
@@ -372,27 +434,4 @@ exports.removeImage = (req, res) => {
       console.error(err);
       return res.status(500).json({ error: err.code });
     });
-};
-// Logs the user out the clean way
-exports.logout = (req, res) => {
-  var uid = firebase.auth().currentUser.uid;
-
-  var userStatusDatabaseRef = firebase.database().ref("/status/" + uid);
-  var isOfflineForDatabase = {
-    state: "offline",
-    last_active: firebase.database.ServerValue.TIMESTAMP,
-  };
-
-  var userStatusFirestoreRef = firebase.firestore().doc("/status/" + uid);
-  var isOfflineForFirestore = {
-    state: "offline",
-    last_active: firebase.firestore.FieldValue.serverTimestamp(),
-  };
-
-  // userStatusDatabaseRef.onDisconnect().cancel();
-
-  userStatusFirestoreRef.set(isOfflineForFirestore);
-  userStatusDatabaseRef.set(isOfflineForDatabase);
-
-  return res.json({ message: "Izrakstijāties veiksmīgi!" });
 };

@@ -15,10 +15,10 @@ const {
   getUserDetails,
   getAllUsers,
   filterUsers,
-  logout,
   removeImage,
   addPhotos,
   validUser,
+  getAllOpenChats,
 } = require("./handlers/users");
 
 // Users routes
@@ -33,7 +33,7 @@ app.post("/filterUsers", filterUsers);
 app.post("/user", FBAuth, addUserDetails);
 app.get("/user", FBAuth, getAuthenticatedUser);
 app.get("/user/:userId", getUserDetails);
-app.get("/getAllUsers", getAllUsers);
-app.patch("/logout", logout);
+app.post("/getAllUsers", getAllUsers);
+app.get("/getAllOpenChats", FBAuth, getAllOpenChats);
 
 exports.api = functions.region("europe-west3").https.onRequest(app);
