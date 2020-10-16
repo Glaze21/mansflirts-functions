@@ -4,7 +4,6 @@ const { v4: uuidv4 } = require("uuid");
 const firebase = require("firebase");
 
 firebase.initializeApp(config);
-
 const {
   validateSignupData,
   validateLoginData,
@@ -59,12 +58,13 @@ exports.signup = (req, res) => {
     year: req.body.year,
     userId: req.body.userId,
   };
-  const noImg = "no-img.png";
+  const noImg = "no-img_512x512.png";
 
   db.collection("users")
     .get()
     .then(() => {
       const userCredentials = {
+        admin: true,
         handle: newUser.handle,
         email: newUser.email,
         createdAt: new Date().toISOString(),
@@ -74,6 +74,7 @@ exports.signup = (req, res) => {
         dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
+        userImages: [],
       };
       return db
         .collection("users")
@@ -95,8 +96,12 @@ exports.signupGoogleFB = (req, res) => {
     email: req.body.email,
     handle: req.body.handle,
     userId: req.body.userId,
+    gender: req.body.gender,
+    day: req.body.day,
+    month: req.body.month,
+    year: req.body.year,
   };
-  const noImg = "no-img.png";
+  const noImg = "no-img_512x512.png";
   db.collection("users")
     .get()
     .then(() => {
@@ -105,9 +110,10 @@ exports.signupGoogleFB = (req, res) => {
         email: newUser.email,
         createdAt: new Date().toISOString(),
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
-        gender: "gender_",
-        dob: "dob_",
-        age: "age_",
+        gender: newUser.gender,
+        lookingFor: "any",
+        dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
+        age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
         lookingFor: "any",
       };
@@ -144,6 +150,36 @@ exports.login = (req, res) => {
     res.json({ message: "Viss OK" });
   }
 };
+exports.loginA = (req, res) => {
+  const user = {
+    email: req.body.email,
+    password: req.body.password,
+  };
+  if (
+    user.email !== "jurnieks1577@epasts.com" &&
+    user.email !== "zeltaZivtiņa_3266"
+  ) {
+    return res.status(400).json({ error: "Kļūme" });
+  } else {
+    res.json({ message: "Viss OK" });
+  }
+};
+exports.checkA = (req, res) => {
+  db.doc(`/users/${req.user.userId}`)
+    .get()
+    .then((doc) => {
+      if (doc.exists) {
+        if (doc.data().admin) {
+          res.json({ message: "Viss OK" });
+        } else {
+          return res.status(400).json({ error: "Kļūme" });
+        }
+      }
+    })
+    .catch((error) => {
+      console.log("Error getting document:", error);
+    });
+};
 // Add user details
 exports.addUserDetails = (req, res) => {
   let userDetails = reduceUserDetails(req.body);
@@ -178,19 +214,18 @@ exports.getUserDetails = (req, res) => {
 };
 // Display all users in home
 exports.getAllUsers = (req, res) => {
-  db.doc(`/users/${req.body.uid}`)
+  const docRef = db.doc(`/users/${req.user.userId}`);
+  docRef
     .get()
     .then((doc) => {
-      if (doc.exists) {
-        return doc.data().lookingFor;
-      }
+      return doc.data().lookingFor;
     })
     .then((lookingFor) => {
       let query;
-      if (lookingFor !== "any") {
-        query = db.collection("users").where("gender", "==", lookingFor);
-      } else {
+      if (lookingFor === "any") {
         query = db.collection("users");
+      } else {
+        query = db.collection("users").where("gender", "==", lookingFor);
       }
       let userData = [];
       query
@@ -207,18 +242,44 @@ exports.getAllUsers = (req, res) => {
               state: doc.data().state,
             });
           });
+          const index = userData.findIndex((x) => x.userId === req.user.userId);
+          if (index !== -1) userData.splice(index, 1);
           return res.json(userData);
         });
     });
 };
 // Display all open chats
 exports.getAllOpenChats = (req, res) => {
-  db.collection("openChats")
-    .doc(`${req.user.userId}`)
+  let users2 = [];
+  db.collection(`/openChats/${req.user.userId}/users2`)
     .get()
-    .then((doc) => {
-      if (doc.exists) {
-        returnOpenChats(doc.data().users2, function (response) {
+    .then((collection) => {
+      if (!collection.empty) {
+        collection.forEach((doc) => {
+          users2.push({ uid: doc.id, msg: doc.data().msg });
+        });
+        returnOpenChats(users2, (response) => {
+          return res.json(response);
+        });
+      } else {
+        return res.json();
+      }
+    });
+};
+exports.getAllNotifications = (req, res) => {
+  let users2 = [];
+  db.collection(`/openChats/${req.user.userId}/notifications`)
+    .get()
+    .then((collection) => {
+      if (!collection.empty) {
+        collection.forEach((doc) => {
+          users2.push({
+            uid: doc.id,
+            msg: doc.data().msg,
+            read: doc.data().read,
+          });
+        });
+        returnOpenChats(users2, (response) => {
           return res.json(response);
         });
       } else {
@@ -227,33 +288,50 @@ exports.getAllOpenChats = (req, res) => {
     });
 };
 returnOpenChats = (users2, callback) => {
+  let users2Ids = [];
+  users2.forEach((item) => {
+    users2Ids.push(item.uid);
+  });
   let query = db.collection("users");
-  if (users2.length !== 0) {
-    query
-      .where("userId", "in", users2)
-      .get()
-      .then((data) => {
-        let userData = [];
-        data.forEach((doc) => {
-          userData.push({
-            userId: doc.id,
-            imageUrl: doc.data().imageUrl,
-            handle: doc.data().handle,
-            age: doc.data().age,
-            location: doc.data().location,
-            state: doc.data().state,
-          });
+  query
+    .where("userId", "in", users2Ids)
+    .get()
+    .then((data) => {
+      let userData = [];
+      i = 0;
+      data.forEach((doc) => {
+        userData.push({
+          userId: doc.id,
+          imageUrl: doc.data().imageUrl,
+          handle: doc.data().handle,
+          state: doc.data().state,
+          msg: users2[i].msg,
+          read: users2[i].read,
         });
-        console.log(userData);
-        callback(userData);
-        return;
-      })
-      .catch((error) => {
-        console.log("Error getting documents: ", error);
+        i++;
       });
-  } else {
-    return callback();
-  }
+      callback(userData);
+      return;
+    })
+    .catch((error) => {
+      console.log("Error getting documents: ", error);
+    });
+};
+exports.getAllNotificationsA = (req, res) => {
+  let notifications = [];
+  db.collectionGroup("notifications")
+    .get()
+    .then((data) => {
+      data.forEach((doc) => {
+        notifications.push({
+          uid: doc.id,
+          recipient: doc.data().recipient,
+          msg: doc.data().msg,
+          read: doc.data().read,
+        });
+      });
+      return res.json(notifications);
+    });
 };
 // Filters users in home
 exports.filterUsers = (req, res) => {
@@ -280,6 +358,8 @@ exports.filterUsers = (req, res) => {
           state: doc.data().state,
         });
       });
+      const index = userData.findIndex((x) => x.userId === req.user.uid);
+      if (index !== -1) userData.splice(index, 1);
       return res.json(userData);
     })
     .catch((err) => {
@@ -314,6 +394,7 @@ exports.uploadImage = (req, res) => {
 
   let imageToBeUploaded = {};
   let imageFileName;
+  let imageExtension;
   // String for image token
   let generatedToken = uuidv4();
 
@@ -322,12 +403,13 @@ exports.uploadImage = (req, res) => {
       return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
     }
     // my.image.png => ['my', 'image', 'png']
-    const imageExtension = filename.split(".")[filename.split(".").length - 1];
+    imageExtension = filename.split(".")[filename.split(".").length - 1];
     // 32756238461724837.png
-    imageFileName = `${Math.round(
-      Math.random() * 1000000000000
-    ).toString()}.${imageExtension}`;
-    const filepath = path.join(os.tmpdir(), imageFileName);
+    imageFileName = `${Math.round(Math.random() * 1000000000000).toString()}`;
+    const filepath = path.join(
+      os.tmpdir(),
+      imageFileName + "." + imageExtension
+    );
     imageToBeUploaded = { filepath, mimetype };
     file.pipe(fs.createWriteStream(filepath));
   });
@@ -340,14 +422,12 @@ exports.uploadImage = (req, res) => {
         metadata: {
           metadata: {
             contentType: imageToBeUploaded.mimetype,
-            //Generate token to be appended to imageUrl
             firebaseStorageDownloadTokens: generatedToken,
           },
         },
       })
       .then(() => {
-        // Append token to url
-        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media&token=${generatedToken}`;
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media&token=${generatedToken}`;
         return db.doc(`/users/${req.user.userId}`).update({ imageUrl });
       })
       .then(() => {
@@ -372,6 +452,7 @@ exports.addPhotos = (req, res) => {
 
   let imageToBeUploaded = {};
   let imageFileName;
+  let imageExtension;
   // String for image token
   let generatedToken = uuidv4();
 
@@ -380,12 +461,13 @@ exports.addPhotos = (req, res) => {
       return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
     }
     // my.image.png => ['my', 'image', 'png']
-    const imageExtension = filename.split(".")[filename.split(".").length - 1];
+    imageExtension = filename.split(".")[filename.split(".").length - 1];
     // 32756238461724837.png
-    imageFileName = `${Math.round(
-      Math.random() * 1000000000000
-    ).toString()}.${imageExtension}`;
-    const filepath = path.join(os.tmpdir(), imageFileName);
+    imageFileName = `${Math.round(Math.random() * 1000000000000).toString()}`;
+    const filepath = path.join(
+      os.tmpdir(),
+      imageFileName + "." + imageExtension
+    );
     imageToBeUploaded = { filepath, mimetype };
     file.pipe(fs.createWriteStream(filepath));
   });
@@ -405,7 +487,7 @@ exports.addPhotos = (req, res) => {
       })
       .then(() => {
         // Append token to url
-        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}?alt=media&token=${generatedToken}`;
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media&token=${generatedToken}`;
         return db.doc(`/users/${req.user.userId}`).update({
           userImages: FieldValue.arrayUnion(imageUrl),
         });
@@ -422,12 +504,23 @@ exports.addPhotos = (req, res) => {
 };
 exports.removeImage = (req, res) => {
   const FieldValue = admin.firestore.FieldValue;
+  var { Storage } = require("@google-cloud/storage");
+  const storage = new Storage();
   const link = req.body.link;
+  const bucketName = "gs://dating-site-e5be3.appspot.com";
+  var imageName = "";
+  var i = 76;
+  while (link.charAt(i) !== "?") {
+    imageName += link.charAt(i);
+    i++;
+  }
   db.doc(`/users/${req.user.userId}`)
     .update({
       userImages: FieldValue.arrayRemove(link),
     })
     .then(() => {
+      storage.bucket(bucketName).file(imageName).delete();
+      console.log(`${bucketName}/${imageName} deleted.`);
       return res.json({ message: "Photo removed successfully" });
     })
     .catch((err) => {

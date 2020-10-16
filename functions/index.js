@@ -9,6 +9,8 @@ const {
   signup,
   signupGoogleFB,
   login,
+  loginA,
+  checkA,
   uploadImage,
   addUserDetails,
   getAuthenticatedUser,
@@ -19,6 +21,8 @@ const {
   addPhotos,
   validUser,
   getAllOpenChats,
+  getAllNotifications,
+  getAllNotificationsA,
 } = require("./handlers/users");
 
 // Users routes
@@ -26,14 +30,18 @@ app.post("/validUser", validUser);
 app.post("/signup", signup);
 app.post("/signupGoogleFB", signupGoogleFB);
 app.post("/login", login);
+app.post("/loginA", loginA);
+app.post("/checkA", FBAuth, checkA);
 app.post("/user/image", FBAuth, uploadImage);
 app.post("/user/addPhotos", FBAuth, addPhotos);
 app.post("/user/removeImage", FBAuth, removeImage);
-app.post("/filterUsers", filterUsers);
+app.get("/getAllUsers", FBAuth, getAllUsers);
+app.post("/filterUsers", FBAuth, filterUsers);
 app.post("/user", FBAuth, addUserDetails);
 app.get("/user", FBAuth, getAuthenticatedUser);
 app.get("/user/:userId", getUserDetails);
-app.post("/getAllUsers", getAllUsers);
 app.get("/getAllOpenChats", FBAuth, getAllOpenChats);
+app.get("/getAllNotifications", FBAuth, getAllNotifications);
+app.get("/getAllNotificationsA", FBAuth, getAllNotificationsA);
 
 exports.api = functions.region("europe-west3").https.onRequest(app);

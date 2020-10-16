@@ -17,6 +17,8 @@ exports.validateSignupData = (data, age) => {
   if (isEmpty(data.email)) errors.email = "Lauks nedrīkst būt tukšs";
   else if (!isEmail(data.email)) errors.email = "Jābūt derīgai e-pasta adresei";
   if (isEmpty(data.password)) errors.password = "Lauks nedrīkst būt tukšs";
+  if (data.password.length < 6)
+    errors.password = "Parolei jābūt vismaz 6 ciparus garai";
   if (data.password !== data.confirmPassword)
     errors.confirmPassword = "Parolēm jābūt vienādām";
   if (isEmpty(data.handle)) errors.handle = "Lauks nedrīkst būt tukšs";
@@ -57,6 +59,10 @@ exports.reduceUserDetails = (data) => {
   if (!isEmpty(data.smoke)) userDetails.smoke = data.smoke;
   if (!isEmpty(data.height)) userDetails.height = data.height;
   if (!isEmpty(data.idealPartner)) userDetails.idealPartner = data.idealPartner;
+  if (!isEmpty(data.lookingFor)) userDetails.lookingFor = data.lookingFor;
+  if (!isEmpty(data.minAge)) userDetails.minAge = data.minAge;
+  if (!isEmpty(data.maxAge)) userDetails.maxAge = data.maxAge;
+  if (!isEmpty(data.language)) userDetails.language = data.language;
 
   return userDetails;
 };
