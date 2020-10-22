@@ -1,6 +1,5 @@
 const { admin, db } = require("../util/admin");
 const config = require("../util/config");
-const { v4: uuidv4 } = require("uuid");
 const firebase = require("firebase");
 
 firebase.initializeApp(config);
@@ -13,7 +12,7 @@ const {
 function getAge(day, month, year) {
   let today = new Date();
   let age = today.getFullYear() - year;
-  let m = today.getMonth() - month;
+  let m = today.getMonth() - month + 1;
   if (m < 0 || (m === 0 && today.getDate() < day)) {
     age--;
   }
@@ -71,7 +70,8 @@ exports.signup = (req, res) => {
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
         lookingFor: newUser.lookingFor,
-        dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
+        coins: 0,
+        dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
         userImages: [],
@@ -92,14 +92,15 @@ exports.signup = (req, res) => {
 };
 // Google Facebook signup
 exports.signupGoogleFB = (req, res) => {
+  let parts = req.body.dob.split("/");
   const newUser = {
     email: req.body.email,
     handle: req.body.handle,
     userId: req.body.userId,
     gender: req.body.gender,
-    day: req.body.day,
-    month: req.body.month,
-    year: req.body.year,
+    month: parts[0],
+    day: parts[1],
+    year: parts[2],
   };
   const noImg = "no-img_512x512.png";
   db.collection("users")
@@ -112,7 +113,8 @@ exports.signupGoogleFB = (req, res) => {
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
         lookingFor: "any",
-        dob: new Date(newUser.year, newUser.month, newUser.day).toISOString(),
+        coins: 0,
+        dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
         lookingFor: "any",
@@ -169,15 +171,10 @@ exports.checkA = (req, res) => {
     .get()
     .then((doc) => {
       if (doc.exists) {
-        if (doc.data().admin) {
-          res.json({ message: "Viss OK" });
-        } else {
-          return res.status(400).json({ error: "Kļūme" });
-        }
+        return res.json({ message: "Viss OK" });
+      } else {
+        return res.status(400).json({ error: "Kļūme" });
       }
-    })
-    .catch((error) => {
-      console.log("Error getting document:", error);
     });
 };
 // Add user details
@@ -230,6 +227,7 @@ exports.getAllUsers = (req, res) => {
       let userData = [];
       query
         .orderBy("createdAt", "desc")
+        .limit(req.body.limit)
         .get()
         .then((data) => {
           data.forEach((doc) => {
@@ -385,13 +383,14 @@ exports.getAuthenticatedUser = (req, res) => {
 };
 // Upload profile image
 exports.uploadImage = (req, res) => {
+  const { v4: uuidv4 } = require("uuid");
   const BusBoy = require("busboy");
   const path = require("path");
   const os = require("os");
   const fs = require("fs");
 
   const busboy = new BusBoy({ headers: req.headers });
-
+  let oldImageLink;
   let imageToBeUploaded = {};
   let imageFileName;
   let imageExtension;
@@ -426,75 +425,18 @@ exports.uploadImage = (req, res) => {
           },
         },
       })
-      .then(() => {
+      .then(async () => {
         const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media&token=${generatedToken}`;
-        return db.doc(`/users/${req.user.userId}`).update({ imageUrl });
+        const docRef = db.doc(`/users/${req.user.userId}`);
+        const doc = await docRef.get();
+        oldImageLink = doc.data().imageUrl;
+        return docRef.update({ imageUrl });
       })
       .then(() => {
-        return res.json({ message: "Attēls veiksmīgi augšupielādēts" });
-      })
-      .catch((err) => {
-        console.error(err);
-        return res.status(500).json({ error: "Kaut kas nogāja greizi" });
-      });
-  });
-  busboy.end(req.rawBody);
-};
-// Add user photos
-exports.addPhotos = (req, res) => {
-  const FieldValue = admin.firestore.FieldValue;
-  const BusBoy = require("busboy");
-  const path = require("path");
-  const os = require("os");
-  const fs = require("fs");
-
-  const busboy = new BusBoy({ headers: req.headers });
-
-  let imageToBeUploaded = {};
-  let imageFileName;
-  let imageExtension;
-  // String for image token
-  let generatedToken = uuidv4();
-
-  busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
-    if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
-      return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
-    }
-    // my.image.png => ['my', 'image', 'png']
-    imageExtension = filename.split(".")[filename.split(".").length - 1];
-    // 32756238461724837.png
-    imageFileName = `${Math.round(Math.random() * 1000000000000).toString()}`;
-    const filepath = path.join(
-      os.tmpdir(),
-      imageFileName + "." + imageExtension
-    );
-    imageToBeUploaded = { filepath, mimetype };
-    file.pipe(fs.createWriteStream(filepath));
-  });
-  busboy.on("finish", () => {
-    admin
-      .storage()
-      .bucket()
-      .upload(imageToBeUploaded.filepath, {
-        resumable: false,
-        metadata: {
-          metadata: {
-            contentType: imageToBeUploaded.mimetype,
-            //Generate token to be appended to imageUrl
-            firebaseStorageDownloadTokens: generatedToken,
-          },
-        },
-      })
-      .then(() => {
-        // Append token to url
-        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media&token=${generatedToken}`;
-        return db.doc(`/users/${req.user.userId}`).update({
-          userImages: FieldValue.arrayUnion(imageUrl),
+        return res.json({
+          oldImageLink,
         });
       })
-      .then(() => {
-        return res.json({ message: "Attēls veiksmīgi augšupielādēts" });
-      })
       .catch((err) => {
         console.error(err);
         return res.status(500).json({ error: "Kaut kas nogāja greizi" });
@@ -502,6 +444,99 @@ exports.addPhotos = (req, res) => {
   });
   busboy.end(req.rawBody);
 };
+
+exports.addPhotos = (req, res) => {
+  // Add user photos v2.0
+  const { v4: uuidv4 } = require("uuid");
+  const BusBoy = require("busboy");
+  const path = require("path");
+  const os = require("os");
+  const fs = require("fs");
+  const FieldValue = admin.firestore.FieldValue;
+
+  let fields = {};
+
+  const busboy = new BusBoy({ headers: req.headers });
+
+  let imageFileName = {};
+  let imagesToUpload = [];
+  let imageToAdd = {};
+  let imageUrl = "";
+  let generatedToken = uuidv4();
+
+  busboy.on("field", (fieldname, fieldvalue) => {
+    fields[fieldname] = fieldvalue;
+  });
+
+  busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
+    if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
+      return res.status(400).json({ error: "Iesniegts nepareizs faila tips" });
+    }
+
+    // Getting extension of any image
+    const imageExtension = filename.split(".")[filename.split(".").length - 1];
+
+    // Setting filename
+    imageFileName = `${Math.round(
+      Math.random() * 100000000000000
+    ).toString()}.${imageExtension}`;
+
+    // Creating path
+    const filepath = path.join(os.tmpdir(), imageFileName);
+    imageToAdd = {
+      imageFileName,
+      filepath,
+      mimetype,
+      imageExtension,
+    };
+
+    file.pipe(fs.createWriteStream(filepath));
+    //Add the image to the array
+    imagesToUpload.push(imageToAdd);
+  });
+
+  busboy.on("finish", async () => {
+    let promises = [];
+
+    imagesToUpload.forEach((imageToBeUploaded) => {
+      imageUrl = `https://firebasestorage.googleapis.com/v0/b/${
+        config.storageBucket
+      }/o/${imageToBeUploaded.imageFileName.replace(
+        "." + imageToBeUploaded.imageExtension,
+        ""
+      )}_512x512.${imageToBeUploaded.imageExtension}?alt=media`;
+      db.doc(`users/${req.user.userId}`).update({
+        userImages: FieldValue.arrayUnion(imageUrl),
+      });
+      promises.push(
+        admin
+          .storage()
+          .bucket()
+          .upload(imageToBeUploaded.filepath, {
+            resumable: false,
+            metadata: {
+              metadata: {
+                contentType: imageToBeUploaded.mimetype,
+                firebaseStorageDownloadTokens: generatedToken,
+              },
+            },
+          })
+      );
+    });
+
+    try {
+      await Promise.all(promises);
+
+      return res.json({ message: "Attēls veiksmīgi augšupielādēts" });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ error: "Kaut kas nogāja greizi" });
+    }
+  });
+
+  busboy.end(req.rawBody);
+};
+
 exports.removeImage = (req, res) => {
   const FieldValue = admin.firestore.FieldValue;
   var { Storage } = require("@google-cloud/storage");
@@ -520,11 +555,81 @@ exports.removeImage = (req, res) => {
     })
     .then(() => {
       storage.bucket(bucketName).file(imageName).delete();
-      console.log(`${bucketName}/${imageName} deleted.`);
       return res.json({ message: "Photo removed successfully" });
     })
     .catch((err) => {
       console.error(err);
       return res.status(500).json({ error: err.code });
     });
+};
+
+exports.createSession = async (req, res) => {
+  const functions = require("firebase-functions");
+  const stripe = require("stripe")(functions.config().stripe.token);
+  const domain = "https://dating-site-e5be3.firebaseapp.com/checkout";
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    customer: req.body.customerId,
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: req.body.desc,
+          },
+          unit_amount: req.body.unit_amount,
+        },
+        quantity: 1,
+      },
+    ],
+    mode: "payment",
+    success_url: `${domain}?success=true`,
+    cancel_url: `${domain}?canceled=true`,
+    metadata: {
+      uid: req.body.uid,
+      coin_amount: req.body.desc.replace("Monētas", ""),
+    },
+  });
+  res.json({ id: session.id });
+};
+
+const fulfillOrder = (session) => {
+  const increment = admin.firestore.FieldValue.increment(
+    parseInt(session.coin_amount, 10)
+  );
+  db.doc(`/users/${session.uid}`).set(
+    {
+      coins: increment,
+    },
+    { merge: true }
+  );
+  return;
+};
+
+exports.onSuccessPayment = (req, res) => {
+  const functions = require("firebase-functions");
+  const stripe = require("stripe")(functions.config().stripe.token);
+  const endpointSecret = "whsec_rqOP5f9uabO00q1y3I3PLoTCWb6osiKk";
+  const payload = req.rawBody;
+
+  const sig = req.headers["stripe-signature"];
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(payload, sig, endpointSecret);
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const returnObj = {
+      customer: session.customer,
+      coin_amount: session.metadata.coin_amount,
+      uid: session.metadata.uid,
+    };
+    fulfillOrder(returnObj);
+    return res.status(200).json(returnObj);
+  }
 };

@@ -33,6 +33,6 @@ service cloud.firestore {
     }
   }
   match /{document=**} {
-      allow read, write: if request.auth.uid == "0XEYthrZAoaCpJuDih8Pmb7JlGV2";
+      allow read, write: if request.auth.uid == "tBwiHDv4NKfLQn77tKo8Ul5vM4h2";
     }
 }

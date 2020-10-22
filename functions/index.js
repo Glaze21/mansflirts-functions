@@ -23,6 +23,8 @@ const {
   getAllOpenChats,
   getAllNotifications,
   getAllNotificationsA,
+  createSession,
+  onSuccessPayment,
 } = require("./handlers/users");
 
 // Users routes
@@ -35,7 +37,9 @@ app.post("/checkA", FBAuth, checkA);
 app.post("/user/image", FBAuth, uploadImage);
 app.post("/user/addPhotos", FBAuth, addPhotos);
 app.post("/user/removeImage", FBAuth, removeImage);
-app.get("/getAllUsers", FBAuth, getAllUsers);
+app.post("/create-session", FBAuth, createSession);
+app.post("/webhook", onSuccessPayment);
+app.post("/getAllUsers", FBAuth, getAllUsers);
 app.post("/filterUsers", FBAuth, filterUsers);
 app.post("/user", FBAuth, addUserDetails);
 app.get("/user", FBAuth, getAuthenticatedUser);
