@@ -20,9 +20,6 @@ const {
   removeImage,
   addPhotos,
   validUser,
-  getAllOpenChats,
-  getAllNotifications,
-  getAllNotificationsA,
   createSession,
   onSuccessPayment,
 } = require("./handlers/users");
@@ -44,8 +41,5 @@ app.post("/filterUsers", FBAuth, filterUsers);
 app.post("/user", FBAuth, addUserDetails);
 app.get("/user", FBAuth, getAuthenticatedUser);
 app.get("/user/:userId", getUserDetails);
-app.get("/getAllOpenChats", FBAuth, getAllOpenChats);
-app.get("/getAllNotifications", FBAuth, getAllNotifications);
-app.get("/getAllNotificationsA", FBAuth, getAllNotificationsA);
 
 exports.api = functions.region("europe-west3").https.onRequest(app);

@@ -70,7 +70,7 @@ exports.signup = (req, res) => {
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
         lookingFor: newUser.lookingFor,
-        coins: 0,
+        coins: 100,
         dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
@@ -113,7 +113,7 @@ exports.signupGoogleFB = (req, res) => {
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
         lookingFor: "any",
-        coins: 0,
+        coins: 100,
         dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
@@ -246,91 +246,6 @@ exports.getAllUsers = (req, res) => {
         });
     });
 };
-// Display all open chats
-exports.getAllOpenChats = (req, res) => {
-  let users2 = [];
-  db.collection(`/openChats/${req.user.userId}/users2`)
-    .get()
-    .then((collection) => {
-      if (!collection.empty) {
-        collection.forEach((doc) => {
-          users2.push({ uid: doc.id, msg: doc.data().msg });
-        });
-        returnOpenChats(users2, (response) => {
-          return res.json(response);
-        });
-      } else {
-        return res.json();
-      }
-    });
-};
-exports.getAllNotifications = (req, res) => {
-  let users2 = [];
-  db.collection(`/openChats/${req.user.userId}/notifications`)
-    .get()
-    .then((collection) => {
-      if (!collection.empty) {
-        collection.forEach((doc) => {
-          users2.push({
-            uid: doc.id,
-            msg: doc.data().msg,
-            read: doc.data().read,
-          });
-        });
-        returnOpenChats(users2, (response) => {
-          return res.json(response);
-        });
-      } else {
-        return res.json();
-      }
-    });
-};
-returnOpenChats = (users2, callback) => {
-  let users2Ids = [];
-  users2.forEach((item) => {
-    users2Ids.push(item.uid);
-  });
-  let query = db.collection("users");
-  query
-    .where("userId", "in", users2Ids)
-    .get()
-    .then((data) => {
-      let userData = [];
-      i = 0;
-      data.forEach((doc) => {
-        userData.push({
-          userId: doc.id,
-          imageUrl: doc.data().imageUrl,
-          handle: doc.data().handle,
-          state: doc.data().state,
-          msg: users2[i].msg,
-          read: users2[i].read,
-        });
-        i++;
-      });
-      callback(userData);
-      return;
-    })
-    .catch((error) => {
-      console.log("Error getting documents: ", error);
-    });
-};
-exports.getAllNotificationsA = (req, res) => {
-  let notifications = [];
-  db.collectionGroup("notifications")
-    .get()
-    .then((data) => {
-      data.forEach((doc) => {
-        notifications.push({
-          uid: doc.id,
-          recipient: doc.data().recipient,
-          msg: doc.data().msg,
-          read: doc.data().read,
-        });
-      });
-      return res.json(notifications);
-    });
-};
 // Filters users in home
 exports.filterUsers = (req, res) => {
   let query = db
@@ -343,6 +258,7 @@ exports.filterUsers = (req, res) => {
     query = query.where("location", "==", req.body.city);
   }
   query
+    .limit(req.body.limit)
     .get()
     .then((data) => {
       let userData = [];
