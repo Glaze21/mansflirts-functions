@@ -1,8 +1,5 @@
-const { admin, db } = require("../util/admin");
+const { admin, db, rtdb } = require("../util/admin");
 const config = require("../util/config");
-const firebase = require("firebase");
-
-firebase.initializeApp(config);
 const {
   validateSignupData,
   validateLoginData,
@@ -19,6 +16,80 @@ function getAge(day, month, year) {
   return age;
 }
 
+exports.buyGift = async (req, res) => {
+  const FieldValue = admin.firestore.FieldValue;
+  let uid = req.user.userId;
+  let value = req.body.value;
+
+  const docRef = db.doc(`users/${uid}`);
+  const doc = await docRef.get();
+
+  if (doc.data().coins >= value) {
+    await docRef.update({
+      coins: FieldValue.increment(-value),
+    });
+    res.status(200).json();
+  } else {
+    res.status(400).json({ message: "Nepietiek monētu!" });
+  }
+};
+// exports.buyGift = async (req, res) => {
+//   const FieldValue = admin.firestore.FieldValue;
+//   let uid = req.user.userId;
+//   let uid2 = req.body.uid2;
+//   let value = req.body.value;
+//   let giftUrl = req.body.giftUrl;
+
+//   const docRef = db.doc(`users/${uid}`);
+//   const doc = await docRef.get();
+//   const _docRef = db.doc(`users/${uid2}`);
+
+//   if (doc.data().coins >= value) {
+//     let handle = doc.data().handle;
+//     await docRef.update({
+//       coins: FieldValue.increment(-value),
+//     });
+//     await _docRef.set(
+//       {
+//         gifts: FieldValue.arrayUnion({
+//           giftUrl: giftUrl,
+//           senderName: handle,
+//           senderUid: uid,
+//         }),
+//       },
+//       { merge: true }
+//     );
+//     res.status(200).json();
+//   } else {
+//     res.status(400).json({ message: "Nepietiek monētu!" });
+//   }
+// };
+
+exports.updateAge = (req, res) => {
+  let dob = req.body.dob;
+  let uid = req.user.uid;
+
+  let parts = dob.split("/");
+
+  let day = parts[0];
+  let month = parts[1];
+  let year = parts[2];
+
+  let age = getAge(day, month, year);
+  if (day === "" || month === "" || year === "") {
+    return res
+      .status(400)
+      .json({ error: "Izvēlies pareizu dzimšanas datumu!" });
+  } else if (age < 18) {
+    return res.status(400).json({ error: "Jums jābūt vismaz 18 gadus vecam!" });
+  } else {
+    db.doc(`users/${uid}`).update({
+      age: age,
+      dob: dob,
+    });
+    return res.json({ age: age, dob: dob });
+  }
+};
 // Validate newUser
 exports.validUser = (req, res) => {
   const newUser = {
@@ -45,7 +116,6 @@ exports.validUser = (req, res) => {
 //Signup user
 exports.signup = (req, res) => {
   const newUser = {
-    email: req.body.email,
     password: req.body.password,
     confirmPassword: req.body.confirmPassword,
     handle: req.body.handle,
@@ -63,18 +133,20 @@ exports.signup = (req, res) => {
     .get()
     .then(() => {
       const userCredentials = {
-        admin: true,
+        admin: false,
         handle: newUser.handle,
-        email: newUser.email,
         createdAt: new Date().toISOString(),
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
         gender: newUser.gender,
         lookingFor: newUser.lookingFor,
-        coins: 100,
+        minAge: "18",
+        maxAge: "65",
+        coins: 120,
         dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
         userId: newUser.userId,
         userImages: [],
+        blockedUsers: [],
       };
       return db
         .collection("users")
@@ -94,7 +166,6 @@ exports.signup = (req, res) => {
 exports.signupGoogleFB = (req, res) => {
   let parts = req.body.dob.split("/");
   const newUser = {
-    email: req.body.email,
     handle: req.body.handle,
     userId: req.body.userId,
     gender: req.body.gender,
@@ -102,41 +173,45 @@ exports.signupGoogleFB = (req, res) => {
     day: parts[1],
     year: parts[2],
   };
+  let age = getAge(newUser.day, newUser.month, newUser.year);
   const noImg = "no-img_512x512.png";
-  db.collection("users")
-    .get()
-    .then(() => {
-      const userCredentials = {
-        handle: newUser.handle,
-        email: newUser.email,
-        createdAt: new Date().toISOString(),
-        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
-        gender: newUser.gender,
-        lookingFor: "any",
-        coins: 100,
-        dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
-        age: getAge(newUser.day, newUser.month, newUser.year),
-        userId: newUser.userId,
-        lookingFor: "any",
-      };
-      return db
-        .collection("users")
-        .doc(`${newUser.userId}`)
-        .set(userCredentials);
-    })
-    .then(() => {
-      return res.status(201).json({ message: "Viss OK" });
-    })
-    .catch((err) => {
-      console.error(err);
-      if (err.code === "auth/email-already-in-use") {
-        return res.status(400).json({ email: "E-pasts jau tiek izmantots" });
-      } else {
-        return res
-          .status(500)
-          .json({ general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz" });
-      }
-    });
+  if (age >= 18) {
+    db.collection("users")
+      .get()
+      .then(() => {
+        const userCredentials = {
+          admin: false,
+          handle: newUser.handle,
+          createdAt: new Date().toISOString(),
+          imageUrl: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
+          gender: newUser.gender,
+          lookingFor: "any",
+          minAge: "18",
+          maxAge: "65",
+          coins: 120,
+          dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
+          age: age,
+          userId: newUser.userId,
+          userImages: [],
+          blockedUsers: [],
+        };
+        return db
+          .collection("users")
+          .doc(`${newUser.userId}`)
+          .set(userCredentials);
+      })
+      .then(() => {
+        return res.status(201).json({ message: "Viss OK" });
+      })
+      .catch((err) => {
+        console.error(err);
+        return res.status(500).json({
+          general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz",
+        });
+      });
+  } else {
+    return res.status(400).json({ age: "Jums jābūt vismaz 18 gadus vecam" });
+  }
 };
 // Login user
 exports.login = (req, res) => {
@@ -153,13 +228,10 @@ exports.login = (req, res) => {
   }
 };
 exports.loginA = (req, res) => {
-  const user = {
-    email: req.body.email,
-    password: req.body.password,
-  };
   if (
-    user.email !== "jurnieks1577@epasts.com" &&
-    user.email !== "zeltaZivtiņa_3266"
+    !["tBwiHDv4NKfLQn77tKo8Ul5vM4h2", "8s5WMBOoj9MRNyyIGC3SVnRcAJ13"].includes(
+      req.user.userId
+    )
   ) {
     return res.status(400).json({ error: "Kļūme" });
   } else {
@@ -170,7 +242,7 @@ exports.checkA = (req, res) => {
   db.doc(`/users/${req.user.userId}`)
     .get()
     .then((doc) => {
-      if (doc.exists) {
+      if (doc.data().mod === true) {
         return res.json({ message: "Viss OK" });
       } else {
         return res.status(400).json({ error: "Kļūme" });
@@ -180,16 +252,31 @@ exports.checkA = (req, res) => {
 // Add user details
 exports.addUserDetails = (req, res) => {
   let userDetails = reduceUserDetails(req.body);
-
-  db.doc(`/users/${req.user.userId}`)
-    .update(userDetails)
-    .then(() => {
-      return res.json({ message: "Informācija veiksmīgi pievienota" });
-    })
-    .catch((err) => {
-      console.error(err);
-      return res.status(500).json({ error: err.code });
-    });
+  if (
+    ["tBwiHDv4NKfLQn77tKo8Ul5vM4h2", "8s5WMBOoj9MRNyyIGC3SVnRcAJ13"].includes(
+      req.user.userId
+    )
+  ) {
+    db.doc(`/users/${req.body.userId}`)
+      .update(userDetails)
+      .then(() => {
+        return res.json({ message: "Informācija veiksmīgi pievienota" });
+      })
+      .catch((err) => {
+        console.error(err);
+        return res.status(500).json({ error: err.code });
+      });
+  } else {
+    db.doc(`/users/${req.user.userId}`)
+      .update(userDetails)
+      .then(() => {
+        return res.json({ message: "Informācija veiksmīgi pievienota" });
+      })
+      .catch((err) => {
+        console.error(err);
+        return res.status(500).json({ error: err.code });
+      });
+  }
 };
 // Get any user's details
 exports.getUserDetails = (req, res) => {
@@ -227,7 +314,7 @@ exports.getAllUsers = (req, res) => {
       let userData = [];
       query
         .orderBy("createdAt", "desc")
-        .limit(req.body.limit)
+        .limit(req.body.limit + 1)
         .get()
         .then((data) => {
           data.forEach((doc) => {
@@ -235,6 +322,7 @@ exports.getAllUsers = (req, res) => {
               userId: doc.id,
               imageUrl: doc.data().imageUrl,
               handle: doc.data().handle,
+              admin: doc.data().admin,
               age: doc.data().age,
               location: doc.data().location,
               state: doc.data().state,
@@ -242,17 +330,26 @@ exports.getAllUsers = (req, res) => {
           });
           const index = userData.findIndex((x) => x.userId === req.user.userId);
           if (index !== -1) userData.splice(index, 1);
+          else userData.splice(req.body.limit + 1, 1);
+
           return res.json(userData);
         });
     });
 };
 // Filters users in home
 exports.filterUsers = (req, res) => {
-  let query = db
-    .collection("users")
-    .where("gender", "==", req.body.gender)
-    .where("age", "<=", req.body.maxAge)
-    .where("age", ">=", req.body.minAge);
+  if (req.body.gender === null) {
+    var query = db
+      .collection("users")
+      .where("age", "<=", req.body.maxAge)
+      .where("age", ">=", req.body.minAge);
+  } else {
+    var query = db
+      .collection("users")
+      .where("gender", "==", req.body.gender)
+      .where("age", "<=", req.body.maxAge)
+      .where("age", ">=", req.body.minAge);
+  }
 
   if (req.body.city !== "") {
     query = query.where("location", "==", req.body.city);
@@ -299,7 +396,6 @@ exports.getAuthenticatedUser = (req, res) => {
 };
 // Upload profile image
 exports.uploadImage = (req, res) => {
-  const { v4: uuidv4 } = require("uuid");
   const BusBoy = require("busboy");
   const path = require("path");
   const os = require("os");
@@ -310,8 +406,6 @@ exports.uploadImage = (req, res) => {
   let imageToBeUploaded = {};
   let imageFileName;
   let imageExtension;
-  // String for image token
-  let generatedToken = uuidv4();
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
@@ -331,18 +425,17 @@ exports.uploadImage = (req, res) => {
   busboy.on("finish", () => {
     admin
       .storage()
-      .bucket()
+      .bucket("gs://mansflirts")
       .upload(imageToBeUploaded.filepath, {
         resumable: false,
         metadata: {
           metadata: {
             contentType: imageToBeUploaded.mimetype,
-            firebaseStorageDownloadTokens: generatedToken,
           },
         },
       })
       .then(async () => {
-        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media&token=${generatedToken}`;
+        const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media`;
         const docRef = db.doc(`/users/${req.user.userId}`);
         const doc = await docRef.get();
         oldImageLink = doc.data().imageUrl;
@@ -363,7 +456,6 @@ exports.uploadImage = (req, res) => {
 
 exports.addPhotos = (req, res) => {
   // Add user photos v2.0
-  const { v4: uuidv4 } = require("uuid");
   const BusBoy = require("busboy");
   const path = require("path");
   const os = require("os");
@@ -378,7 +470,6 @@ exports.addPhotos = (req, res) => {
   let imagesToUpload = [];
   let imageToAdd = {};
   let imageUrl = "";
-  let generatedToken = uuidv4();
 
   busboy.on("field", (fieldname, fieldvalue) => {
     fields[fieldname] = fieldvalue;
@@ -427,13 +518,12 @@ exports.addPhotos = (req, res) => {
       promises.push(
         admin
           .storage()
-          .bucket()
+          .bucket("gs://mansflirts")
           .upload(imageToBeUploaded.filepath, {
             resumable: false,
             metadata: {
               metadata: {
                 contentType: imageToBeUploaded.mimetype,
-                firebaseStorageDownloadTokens: generatedToken,
               },
             },
           })
@@ -458,9 +548,9 @@ exports.removeImage = (req, res) => {
   var { Storage } = require("@google-cloud/storage");
   const storage = new Storage();
   const link = req.body.link;
-  const bucketName = "gs://dating-site-e5be3.appspot.com";
+  const bucketName = "gs://mansflirts";
   var imageName = "";
-  var i = 76;
+  var i = 57;
   while (link.charAt(i) !== "?") {
     imageName += link.charAt(i);
     i++;
@@ -482,7 +572,7 @@ exports.removeImage = (req, res) => {
 exports.createSession = async (req, res) => {
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
-  const domain = "https://dating-site-e5be3.firebaseapp.com/checkout";
+  const domain = "https://mansflirts.lv/checkout";
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     customer: req.body.customerId,
@@ -499,10 +589,10 @@ exports.createSession = async (req, res) => {
       },
     ],
     mode: "payment",
-    success_url: `${domain}?success=true`,
-    cancel_url: `${domain}?canceled=true`,
+    success_url: domain,
+    cancel_url: domain,
     metadata: {
-      uid: req.body.uid,
+      uid: req.user.userId,
       coin_amount: req.body.desc.replace("Monētas", ""),
     },
   });
@@ -525,7 +615,7 @@ const fulfillOrder = (session) => {
 exports.onSuccessPayment = (req, res) => {
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
-  const endpointSecret = "whsec_rqOP5f9uabO00q1y3I3PLoTCWb6osiKk";
+  const endpointSecret = "whsec_E069Nz2ihXoCZpWBsUtX523UDQZc3wEk";
   const payload = req.rawBody;
 
   const sig = req.headers["stripe-signature"];
@@ -548,4 +638,86 @@ exports.onSuccessPayment = (req, res) => {
     fulfillOrder(returnObj);
     return res.status(200).json(returnObj);
   }
+};
+exports.deleteProfile = (req, res) => {
+  var { Storage } = require("@google-cloud/storage");
+  const storage = new Storage();
+  const bucketName = "gs://mansflirts";
+  const functions = require("firebase-functions");
+  const stripe = require("stripe")(functions.config().stripe.token);
+  let uid = req.user.uid;
+
+  admin
+    .auth()
+    .deleteUser(uid)
+    .then(() => {
+      db.collectionGroup("users2")
+        .where("ref", "==", db.doc(`users/${uid}`))
+        .get()
+        .then((query) => {
+          query.forEach((doc) => doc.ref.delete());
+        });
+      db.collectionGroup("notifications")
+        .where("ref", "==", db.doc(`users/${uid}`))
+        .get()
+        .then((query) => {
+          query.forEach((doc) => doc.ref.delete());
+        });
+      db.collection("adminMessages")
+        .where("uid", "==", uid)
+        .get()
+        .then((query) => {
+          query.forEach((doc) => doc.ref.delete());
+        });
+    })
+    .then(() => {
+      db.doc(`users/${uid}`)
+        .get()
+        .then((doc) => {
+          var i = 57;
+          const images = doc.data().userImages;
+          const profileImage = doc.data().imageUrl;
+          if (
+            !profileImage.includes(
+              "https://firebasestorage.googleapis.com/v0/b/mansflirts/o/no-img_512x512.png?alt=media"
+            )
+          ) {
+            let profileImageName = "";
+            while (profileImage.charAt(i) !== "?") {
+              profileImageName += profileImage.charAt(i);
+              i++;
+            }
+            storage.bucket(bucketName).file(profileImageName).delete();
+          }
+          images.forEach((image) => {
+            let imageName = "";
+            while (image.charAt(i) !== "?") {
+              imageName += image.charAt(i);
+              i++;
+            }
+            storage.bucket(bucketName).file(imageName).delete();
+          });
+        });
+    })
+    .then(() => {
+      db.doc(`customers/${uid}`)
+        .get()
+        .then((doc) => {
+          stripe.customers.del(doc.data().stripeId).then(() => {
+            db.doc(`users/${uid}`).delete();
+            db.doc(`customers/${uid}`).delete();
+            db.doc(`openChats/${uid}`).delete();
+          });
+        });
+    })
+    .then(() => {
+      rtdb.ref(`/status/${uid}`).remove();
+
+      rtdb.ref("chats").on("child_added", (snapshot) => {
+        if (snapshot.key.includes(uid)) {
+          rtdb.ref(`/chats/${snapshot.key}`).remove();
+        }
+      });
+      return res.json({});
+    });
 };

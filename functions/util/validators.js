@@ -63,6 +63,8 @@ exports.reduceUserDetails = (data) => {
   if (!isEmpty(data.minAge)) userDetails.minAge = data.minAge;
   if (!isEmpty(data.maxAge)) userDetails.maxAge = data.maxAge;
   if (!isEmpty(data.language)) userDetails.language = data.language;
+  if (!isEmpty(data.zodiac)) userDetails.zodiac = data.zodiac;
+  if (!isEmpty(data.userId)) userDetails.userId = data.userId;
 
   return userDetails;
 };
