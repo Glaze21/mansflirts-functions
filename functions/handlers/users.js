@@ -471,6 +471,13 @@ exports.addPhotos = (req, res) => {
   let imageToAdd = {};
   let imageUrl = "";
 
+  const docRef = db.doc(`users/${req.user.userId}`);
+
+  docRef.get().then((doc) => {
+    if (doc.data().userImages.length > 20) {
+      return res.status(400).json({ error: "Par daudz bilžu" });
+    }
+  });
   busboy.on("field", (fieldname, fieldvalue) => {
     fields[fieldname] = fieldvalue;
   });
@@ -512,7 +519,7 @@ exports.addPhotos = (req, res) => {
         "." + imageToBeUploaded.imageExtension,
         ""
       )}_512x512.${imageToBeUploaded.imageExtension}?alt=media`;
-      db.doc(`users/${req.user.userId}`).update({
+      docRef.update({
         userImages: FieldValue.arrayUnion(imageUrl),
       });
       promises.push(
@@ -642,7 +649,7 @@ exports.onSuccessPayment = (req, res) => {
 exports.deleteProfile = (req, res) => {
   var { Storage } = require("@google-cloud/storage");
   const storage = new Storage();
-  const bucketName = "gs://mansflirts";
+  const bucket = storage.bucket("gs://mansflirts");
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
   let uid = req.user.uid;
@@ -652,13 +659,13 @@ exports.deleteProfile = (req, res) => {
     .deleteUser(uid)
     .then(() => {
       db.collectionGroup("users2")
-        .where("ref", "==", db.doc(`users/${uid}`))
+        .where("ref", "==", db.doc(`/users/${uid}`))
         .get()
         .then((query) => {
           query.forEach((doc) => doc.ref.delete());
         });
       db.collectionGroup("notifications")
-        .where("ref", "==", db.doc(`users/${uid}`))
+        .where("ref", "==", db.doc(`/users/${uid}`))
         .get()
         .then((query) => {
           query.forEach((doc) => doc.ref.delete());
@@ -687,15 +694,18 @@ exports.deleteProfile = (req, res) => {
               profileImageName += profileImage.charAt(i);
               i++;
             }
-            storage.bucket(bucketName).file(profileImageName).delete();
+            const file = bucket.file(profileImageName);
+            file.delete();
           }
           images.forEach((image) => {
+            let j = 57;
             let imageName = "";
-            while (image.charAt(i) !== "?") {
-              imageName += image.charAt(i);
-              i++;
+            while (image.charAt(j) !== "?") {
+              imageName += image.charAt(j);
+              j++;
             }
-            storage.bucket(bucketName).file(imageName).delete();
+            const file = bucket.file(imageName);
+            file.delete();
           });
         });
     })
