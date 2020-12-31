@@ -646,35 +646,57 @@ exports.onSuccessPayment = (req, res) => {
     return res.status(200).json(returnObj);
   }
 };
+
 exports.deleteProfile = (req, res) => {
   var { Storage } = require("@google-cloud/storage");
   const storage = new Storage();
   const bucket = storage.bucket("gs://mansflirts");
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
-  let uid = req.user.uid;
+  const uid = req.user.uid;
 
-  admin
-    .auth()
-    .deleteUser(uid)
+  db.collectionGroup("users2")
+    .where("ref", "==", db.doc(`/users/${uid}`))
+    .get()
+    .then((query) => {
+      query.forEach((doc) => doc.ref.delete());
+    })
     .then(() => {
-      db.collectionGroup("users2")
-        .where("ref", "==", db.doc(`/users/${uid}`))
-        .get()
-        .then((query) => {
-          query.forEach((doc) => doc.ref.delete());
-        });
       db.collectionGroup("notifications")
         .where("ref", "==", db.doc(`/users/${uid}`))
         .get()
         .then((query) => {
           query.forEach((doc) => doc.ref.delete());
         });
+    })
+    .then(() => {
       db.collection("adminMessages")
         .where("uid", "==", uid)
         .get()
         .then((query) => {
           query.forEach((doc) => doc.ref.delete());
+        });
+    })
+    .then(() => {
+      db.collection(`openChats/${uid}/notifications`)
+        .get()
+        .then((sub) => {
+          if (!sub.empty) {
+            sub.forEach((doc) => {
+              doc.ref.delete();
+            });
+          }
+        });
+    })
+    .then(() => {
+      db.collection(`openChats/${uid}/users2`)
+        .get()
+        .then((sub) => {
+          if (!sub.empty) {
+            sub.forEach((doc) => {
+              doc.ref.delete();
+            });
+          }
         });
     })
     .then(() => {
@@ -713,21 +735,23 @@ exports.deleteProfile = (req, res) => {
       db.doc(`customers/${uid}`)
         .get()
         .then((doc) => {
-          stripe.customers.del(doc.data().stripeId).then(() => {
-            db.doc(`users/${uid}`).delete();
-            db.doc(`customers/${uid}`).delete();
-            db.doc(`openChats/${uid}`).delete();
+          stripe.customers.del(doc.data().stripeId).then(async () => {
+            await db.doc(`users/${uid}`).delete();
+            await db.doc(`customers/${uid}`).delete();
+            await db.doc(`usersNotif/${uid}`).delete();
           });
         });
     })
     .then(() => {
-      rtdb.ref(`/status/${uid}`).remove();
-
+      rtdb.ref(`status/${uid}`).remove();
       rtdb.ref("chats").on("child_added", (snapshot) => {
         if (snapshot.key.includes(uid)) {
           rtdb.ref(`/chats/${snapshot.key}`).remove();
         }
       });
+    })
+    .then(() => {
+      admin.auth().deleteUser(uid);
       return res.json({});
     });
 };

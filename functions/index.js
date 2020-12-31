@@ -1,4 +1,4 @@
-const { db, rtdb } = require("./util/admin");
+const { admin, db, rtdb } = require("./util/admin");
 const functions = require("firebase-functions");
 const app = require("express")();
 const FBAuth = require("./util/fbAuth");
@@ -51,7 +51,69 @@ app.get("/user/:userId", getUserDetails);
 
 exports.api = functions.region("europe-west3").https.onRequest(app);
 
+function sendMsgs(tokens, uid2, msg, uid, trigger) {
+  tokens.forEach((token) => {
+    db.doc(`/users/${uid2}`)
+      .get()
+      .then((doc) => {
+        var message = {
+          data: {
+            title: doc.data().handle,
+            body: msg,
+          },
+          token: token,
+        };
+        admin
+          .messaging()
+          .send(message)
+          .catch(() => {
+            console.log(
+              "error sending notification to token, deleting token: ",
+              token
+            );
+            if (trigger) {
+              db.doc(`/usersNotif/8s5WMBOoj9MRNyyIGC3SVnRcAJ13`).update({
+                tokens: admin.firestore.FieldValue.arrayRemove(token),
+              });
+              db.doc(`/usersNotif/tBwiHDv4NKfLQn77tKo8Ul5vM4h2`).update({
+                tokens: admin.firestore.FieldValue.arrayRemove(token),
+              });
+            } else {
+              db.doc(`/usersNotif/${uid}`).update({
+                tokens: admin.firestore.FieldValue.arrayRemove(token),
+              });
+            }
+          });
+      });
+  });
+}
+
 // RTDB Triggers
+exports.userSignup = functions
+  .region("europe-west3")
+  .auth.user()
+  .onCreate(async (user) => {
+    const userNotifDoc = await db
+      .doc(`usersNotif/8s5WMBOoj9MRNyyIGC3SVnRcAJ13`)
+      .get();
+    const userNotifDoc2 = await db
+      .doc(`usersNotif/tBwiHDv4NKfLQn77tKo8Ul5vM4h2`)
+      .get();
+
+    var tokens = [];
+    if (userNotifDoc.exists) {
+      userNotifDoc.data().tokens.forEach((token) => {
+        tokens.push(token);
+      });
+    }
+    if (userNotifDoc2.exists) {
+      userNotifDoc2.data().tokens.forEach((token) => {
+        tokens.push(token);
+      });
+    }
+    return sendMsgs(tokens, user.uid, "Jauns lietotājs", null, true);
+  });
+
 exports.onUserStatusChanged = functions
   .region("europe-west3")
   .database.instance("mansflirts")
@@ -88,8 +150,15 @@ exports.onRecieveMessage = functions
 
     const doc = await db.doc(`/users/${uid}`).get();
 
+    //admin
     if (doc.data().admin) {
-      return db.doc(`/adminMessages/${msgId}`).set({
+      const userNotifDoc = await db
+        .doc(`usersNotif/8s5WMBOoj9MRNyyIGC3SVnRcAJ13`)
+        .get();
+      const userNotifDoc2 = await db
+        .doc(`usersNotif/tBwiHDv4NKfLQn77tKo8Ul5vM4h2`)
+        .get();
+      db.doc(`/adminMessages/${msgId}`).set({
         msg: msgData.text,
         type: msgData.type,
         read: false,
@@ -97,31 +166,75 @@ exports.onRecieveMessage = functions
         recipient: uid,
         ref: db.doc(`users/${uid2}`),
       });
+      var tokens = [];
+      if (userNotifDoc.exists) {
+        userNotifDoc.data().tokens.forEach((token) => {
+          tokens.push(token);
+        });
+      }
+      if (userNotifDoc2.exists) {
+        userNotifDoc2.data().tokens.forEach((token) => {
+          tokens.push(token);
+        });
+      }
+      return sendMsgs(
+        tokens,
+        uid2,
+        msgData.type === "gift" ? "Dāvana" : msgData.text,
+        null,
+        true
+      );
+      //blocked
     } else if (doc.data().blockedUsers.includes(uid2)) {
       return null;
+      //standard
     } else {
+      const userNotifDoc = await db.doc(`usersNotif/${uid}`).get();
       const users2 = await db.doc(`/openChats/${uid}/users2/${uid2}`).get();
       const notificationsRef = db.doc(
         `/openChats/${uid}/notifications/${uid2}`
       );
+      //users2
       if (users2.exists) {
-        return users2.ref.set({
+        users2.ref.set({
           read: false,
           msg: msgData.text,
           type: msgData.type,
           ref: db.doc(`users/${uid2}`),
+          date: Date.now(),
         });
+        if (userNotifDoc.exists) {
+          return sendMsgs(
+            userNotifDoc.data().tokens,
+            uid2,
+            msgData.type === "gift" ? "Dāvana" : msgData.text,
+            uid
+          );
+        } else {
+          return null;
+        }
       } else {
-        return notificationsRef.set({
+        //notif
+        notificationsRef.set({
           read: false,
           msg: msgData.text,
           type: msgData.type,
           ref: db.doc(`users/${uid2}`),
+          date: Date.now(),
         });
+        if (userNotifDoc.exists) {
+          return sendMsgs(
+            userNotifDoc.data().tokens,
+            uid2,
+            msgData.type === "gift" ? "Dāvana" : msgData.text,
+            uid
+          );
+        } else {
+          return null;
+        }
       }
     }
   });
-//
 
 exports.scheduledMessages = functions
   .region("europe-west3")
