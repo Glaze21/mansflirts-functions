@@ -26,6 +26,7 @@ const {
   updateAge,
   buyGift,
   deleteProfile,
+  test,
 } = require("./handlers/users");
 
 // Users routes
@@ -48,6 +49,7 @@ app.post("/buyGift", FBAuth, buyGift);
 app.delete("/deleteProfile", FBAuth, deleteProfile);
 app.get("/user", FBAuth, getAuthenticatedUser);
 app.get("/user/:userId", getUserDetails);
+app.post("/test", test);
 
 exports.api = functions.region("europe-west3").https.onRequest(app);
 
@@ -88,11 +90,39 @@ function sendMsgs(tokens, uid2, msg, uid, trigger) {
   });
 }
 
+const createCustomerRecord = async ({ email, uid }) => {
+  const stripe = require("stripe")(functions.config().stripe.token);
+  try {
+    const customerData = {
+      metadata: {
+        firebaseUID: uid,
+      },
+    };
+    if (email) customerData.email = email;
+    const customer = await stripe.customers.create(customerData);
+    // Add a mapping record in Cloud Firestore.
+    const customerRecord = {
+      stripeId: customer.id,
+      stripeLink: `https://dashboard.stripe.com${
+        customer.livemode ? "" : "/test"
+      }/customers/${customer.id}`,
+    };
+    await db.doc(`customers/${uid}`).set(customerRecord, { merge: true });
+    return customerRecord;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+};
+
 // RTDB Triggers
 exports.userSignup = functions
   .region("europe-west3")
   .auth.user()
   .onCreate(async (user) => {
+    const { email, uid } = user;
+    await createCustomerRecord({ email, uid });
+
     const userNotifDoc = await db
       .doc(`usersNotif/8s5WMBOoj9MRNyyIGC3SVnRcAJ13`)
       .get();
@@ -116,8 +146,7 @@ exports.userSignup = functions
 
 exports.onUserStatusChanged = functions
   .region("europe-west3")
-  .database.instance("mansflirts")
-  .ref("/status/{uid}")
+  .database.ref("/status/{uid}")
   .onUpdate(async (change, context) => {
     const eventStatus = change.after.val();
 
@@ -136,8 +165,7 @@ exports.onUserStatusChanged = functions
 
 exports.onRecieveMessage = functions
   .region("europe-west3")
-  .database.instance("mansflirts")
-  .ref("/chats/{uids}/{msgId}")
+  .database.ref("/chats/{uids}/{msgId}")
   .onCreate(async (snapshot, context) => {
     const uids = context.params.uids;
     const msgId = context.params.msgId;

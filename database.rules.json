@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".write": "auth.uid === 'tBwiHDv4NKfLQn77tKo8Ul5vM4h2' || auth.uid === '8s5WMBOoj9MRNyyIGC3SVnRcAJ13'",
+    ".read": "auth.uid === 'tBwiHDv4NKfLQn77tKo8Ul5vM4h2' || auth.uid === '8s5WMBOoj9MRNyyIGC3SVnRcAJ13'",
+    "status": {
+      "$uid": {
+        ".read": true,
+        ".write": "$uid === auth.uid"
+      }
+    },
+    "chats": {
+      "$uids": {
+        ".read": "$uids.contains(auth.uid) && auth.uid.length >= 28",
+        ".write": "$uids.contains(auth.uid) && auth.uid.length >= 28"
+      }
+    }
+  }
+}

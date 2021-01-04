@@ -1,10 +1,11 @@
 module.exports = {
-  apiKey: "AIzaSyB8vU6CCJTykyml4QSzjDG2wYgfyiL9_GA",
+  apiKey: "AIzaSyAFIeOHjYb3eEItcVrh0d5Sad_6q9rL-Yk",
   authDomain: "mansflirts.lv",
-  databaseURL: "https://mansflirts.europe-west1.firebasedatabase.app",
-  projectId: "dating-site-e5be3",
-  storageBucket: "mansflirts",
-  messagingSenderId: "606732221277",
-  appId: "1:606732221277:web:6ac74a09f2fe395f9d86b4",
-  measurementId: "G-F0NLQ4NTQR",
+  databaseURL:
+    "https://mansflirts-5add7-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "mansflirts-5add7",
+  storageBucket: "mansflirts-5add7.appspot.com",
+  messagingSenderId: "219742985728",
+  appId: "1:219742985728:web:6b2c2f53d1cd036fedc2e5",
+  measurementId: "G-SQXQ6J5NRQ",
 };

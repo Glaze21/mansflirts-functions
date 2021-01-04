@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+   	match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid;
+    }
+    match /openChats/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid;
+      
+      match /users2/{uid2} {
+      	allow read: if request.auth != null;
+      	allow write: if request.auth.uid == uid;
+      }
+      
+      match /notifications/{uid2} {
+      	allow read: if request.auth != null;
+      	allow write: if request.auth.uid == uid;
+      }
+    }
+    match /customers/{uid} {
+      allow read: if request.auth.uid == uid;
+    }
+
+    match /products/{id} {
+      allow read: if true;
+
+      match /prices/{id} {
+        allow read: if true;
+      }
+    }
+    match /usersNotif/{uid} {
+  		allow read,write: if request.auth.uid == uid;
+  	}
+  }
+  match /{document=**} {
+      allow read, write: if request.auth.uid == "tBwiHDv4NKfLQn77tKo8Ul5vM4h2" || request.auth.uid == "8s5WMBOoj9MRNyyIGC3SVnRcAJ13";
+    }
+}

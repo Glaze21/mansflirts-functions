@@ -1,10 +1,10 @@
 const { admin, db, rtdb } = require("../util/admin");
-const config = require("../util/config");
 const {
   validateSignupData,
   validateLoginData,
   reduceUserDetails,
 } = require("../util/validators");
+var config = require("../util/config");
 
 function getAge(day, month, year) {
   let today = new Date();
@@ -622,7 +622,7 @@ const fulfillOrder = (session) => {
 exports.onSuccessPayment = (req, res) => {
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
-  const endpointSecret = "whsec_E069Nz2ihXoCZpWBsUtX523UDQZc3wEk";
+  const endpointSecret = "whsec_XdX9KG1irTUz2PbPHRQHT7SiJ6p5DcAe";
   const payload = req.rawBody;
 
   const sig = req.headers["stripe-signature"];
@@ -753,5 +753,68 @@ exports.deleteProfile = (req, res) => {
     .then(() => {
       admin.auth().deleteUser(uid);
       return res.json({});
+    });
+};
+
+// exports.test = (req, res) => {
+//   db.collection("users")
+//     .get()
+//     .then((col) => {
+//       col.forEach((doc) => {
+//         var imageUrl = doc.data().imageUrl;
+//         console.log(doc.id);
+//         console.log(imageUrl);
+//         if (
+//           doc.id !== "8s5WMBOoj9MRNyyIGC3SVnRcAJ13" &&
+//           doc.id !== "tBwiHDv4NKfLQn77tKo8Ul5vM4h2"
+//         ) {
+//           if (imageUrl.charAt(59) === "e") {
+//             var startingString = "https://firebasestorage.googleapis.com/v0/b/";
+//             var endingString = imageUrl.slice(61, imageUrl.length);
+//             console.log(startingString + "mansflirts-5add7" + endingString);
+//             db.doc(`users/${doc.id}`).update({
+//               imageUrl: startingString + "mansflirts-5add7" + endingString,
+//             });
+//           }
+//         }
+//       });
+//       return res.json({ Ok: "" });
+//     });
+// };
+
+exports.test = (req, res) => {
+  const FieldValue = admin.firestore.FieldValue;
+  db.collection("users")
+    .get()
+    .then((col) => {
+      col.forEach((doc) => {
+        var userImages = doc.data().userImages;
+        if (
+          doc.id !== "8s5WMBOoj9MRNyyIGC3SVnRcAJ13" &&
+          doc.id !== "tBwiHDv4NKfLQn77tKo8Ul5vM4h2"
+        )
+          if (userImages) {
+            console.log(doc.id);
+            userImages.forEach((image) => {
+              if (image.charAt(59) === "e") {
+                var startingString =
+                  "https://firebasestorage.googleapis.com/v0/b/";
+                var endingString = image.slice(61, image.length);
+                console.log(startingString + "mansflirts-5add7" + endingString);
+                db.doc(`users/${doc.id}`).update({
+                  userImages: FieldValue.arrayRemove(image),
+                });
+                db.doc(`users/${doc.id}`).update({
+                  userImages: FieldValue.arrayUnion(
+                    startingString + "mansflirts-5add7" + endingString
+                  ),
+                });
+              }
+            });
+          }
+        {
+        }
+      });
+      return res.json({ Ok: "" });
     });
 };
