@@ -1,7 +1,7 @@
 {
   "rules": {
-    ".write": "auth.uid === 'tBwiHDv4NKfLQn77tKo8Ul5vM4h2' || auth.uid === '8s5WMBOoj9MRNyyIGC3SVnRcAJ13'",
-    ".read": "auth.uid === 'tBwiHDv4NKfLQn77tKo8Ul5vM4h2' || auth.uid === '8s5WMBOoj9MRNyyIGC3SVnRcAJ13'",
+    ".write": "auth.uid === 'hg5F4cE0KgYcWNgd2gXZ6UfFYq23' || auth.uid === 'eYeJTFFhDVfQIc73DH7qFOdVsNn2'",
+    ".read": "auth.uid === 'hg5F4cE0KgYcWNgd2gXZ6UfFYq23' || auth.uid === 'eYeJTFFhDVfQIc73DH7qFOdVsNn2'",
     "status": {
       "$uid": {
         ".read": true,

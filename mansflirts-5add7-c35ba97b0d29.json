@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "mansflirts-5add7",
+  "private_key_id": "c35ba97b0d294fee405e9249ca620673796b3914",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCqhn/ZXFCDkq6s\nbKx55nWKn7+db171foystyEyIlgHUJykHO+v0mJZ5tatTB8PMoVw0m2fv3R+g0p8\nET31h8uYfRM16NqEEA65sjTg0iqGUKazsnfKE8JPq+x/r+/tTGHEwfr9615FRld9\ntCzG4ab6ECUnXoIrATyAtNTkFIgJS4iaSvpfyCMTbRDhEWU2dm51t2uUfmnS41mR\n8yIkiR8/eB7HYJMthmixWm/dEp4fiYEzhBcf6odX71WzX0Nz2x6viXHyQ995VVZF\nSKBu/sV/c4I9hxMt7ziuR4kW0xLFjlFT2qFJS3AxRzE+qk7cJzmMMRkyPmGqPG5g\nyEFP2Xu3AgMBAAECggEADdMDkFqEiHYexQm2XdeKFefnf9rkhuBwhRv/i/Hu0wD9\nAez6nXVf1cv6AWiXaAL/gGr+yiGaTxtTsYUwUbRllAInyYoMFQK8Pt+sm8FOAz+M\nlCrWvUIm0ZCthph7yfAUSQA02dr39IPEWgN+Uc0/XSxr5qopwVTDU+fVDnx/nskn\nyMxUrutgv+WYqpLvHGg8gYow+rbZ5HsCT2zP2TsoKWLU3rRDDUXJZppNQzWCbaAJ\n01O/FZOEa7aCNTb2bI0cgXlU4CWpq9jYUD/qwD95HNYq0hAZsS8uOCZN+JB648vY\nAGu4ss5ZKau7m/H3nyNK1Al+aZKBP53f+tMl/UAiCQKBgQDm9dCRKv79Stox5wZr\nZnzhDQqmOm9t0XQacG/0dypAEYQUKrtsUN+FqzP03k/Ipf5SXR0pfXAcTdq4aVw0\nfJ++/QZ0BTmMJiNH9b5hwxhGpBzbhghzRRrlZhxy/kNJKBcJyKET9J3Dmdn3WMzj\nzxtsB3uokPqhdM+JQhPGFFrpmwKBgQC9A1iov5mbMaVMWHQ5ZgCLDwUEt8i0DSXf\ndyED2glf/x56nPne2YcZ70cCzObkjL8acC1H3gEXek3Dm8V/Qde6KHklRNpwjESx\n/HXQnKnc8dOoAbOKypN/sP2krYYhAcwXr0eRWlBLsXNtqafb2AxVnxkP7Ay70XAw\n4RJmfoMWFQKBgQCC7K/5yvTXYzpDdaIm+ecqsHjr+E44Y7a8Uia032R9AzDrObob\nUdET9hQy6F8z8B02VYB1h50o/l1RkrBpNIhd/RNOa7POpcP0Q/NTegPl75xIOTfL\nGE6B4huYeFhuPSKqMihVpqJUQn/T/mvPbBUwbSGFUgIxyoTnWyTYcauDpwKBgFu1\n3vPqG6cQvKrBlIsxMfxHKmEyp4CtjH3UOMG8rqXUjL5jol394C62ShdSwomMvUEf\nwujHEHKK1maeE4L+uKTL9JQfx3mqpb5Sx/uTuFvLPq6bPLmQN2dSwo9/3r/vNk8b\nrjcZwjIoBODl29uxBbMZwjhWiYssQSqGWr4+jm5NAoGBAJGEKMDA45bKua693C8H\nhHDKRB52RPZ4KC3SjKjVubuLVN4CMz85M3SiInSy+bYudrdhC6qHWbZ6uFzVy82y\n2bzPY2IpmV3AMl//iXHgzFV8GdaCI0eg1ksp7RTFyVs6Vl5qZgN1PNSGg34Hbx6c\nX4e/NKFAA463CjFh1q/ktklH\n-----END PRIVATE KEY-----\n",
+  "client_email": "emulator@mansflirts-5add7.iam.gserviceaccount.com",
+  "client_id": "117236268268610548421",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/emulator%40mansflirts-5add7.iam.gserviceaccount.com"
+}

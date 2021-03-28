@@ -34,18 +34,6 @@ exports.validateSignupData = (data, age) => {
     valid: Object.keys(errors).length === 0 ? true : false,
   };
 };
-// Validates Login info
-exports.validateLoginData = (data) => {
-  let errors = {};
-
-  if (isEmpty(data.email)) errors.email = "Lauks nedrīkst būt tukšs";
-  if (isEmpty(data.password)) errors.password = "Lauks nedrīkst būt tukšs";
-
-  return {
-    errors,
-    valid: Object.keys(errors).length === 0 ? true : false,
-  };
-};
 // Removes user detail if it's empty
 exports.reduceUserDetails = (data) => {
   let userDetails = {};
@@ -62,8 +50,6 @@ exports.reduceUserDetails = (data) => {
   if (!isEmpty(data.lookingFor)) userDetails.lookingFor = data.lookingFor;
   if (!isEmpty(data.minAge)) userDetails.minAge = data.minAge;
   if (!isEmpty(data.maxAge)) userDetails.maxAge = data.maxAge;
-  if (!isEmpty(data.language)) userDetails.language = data.language;
-  if (!isEmpty(data.zodiac)) userDetails.zodiac = data.zodiac;
   if (!isEmpty(data.userId)) userDetails.userId = data.userId;
 
   return userDetails;

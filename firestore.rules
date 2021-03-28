@@ -35,6 +35,6 @@ service cloud.firestore {
   	}
   }
   match /{document=**} {
-      allow read, write: if request.auth.uid == "tBwiHDv4NKfLQn77tKo8Ul5vM4h2" || request.auth.uid == "8s5WMBOoj9MRNyyIGC3SVnRcAJ13";
+      allow read, write: if request.auth.uid == "hg5F4cE0KgYcWNgd2gXZ6UfFYq23" || request.auth.uid == "eYeJTFFhDVfQIc73DH7qFOdVsNn2";
     }
 }

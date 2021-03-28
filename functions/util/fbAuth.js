@@ -24,8 +24,13 @@ module.exports = (req, res, next) => {
         .get();
     })
     .then((data) => {
-      req.user.userId = data.docs[0].data().userId;
-      return next();
+      if (data.docs[0].data().mod && req.headers.userid) {
+        req.user.userId = req.headers.userid;
+        return next();
+      } else {
+        req.user.userId = data.docs[0].data().userId;
+        return next();
+      }
     })
     .catch((err) => {
       console.error("Error while verifying token", err);

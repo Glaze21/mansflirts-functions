@@ -5,6 +5,8 @@ const {
   reduceUserDetails,
 } = require("../util/validators");
 var config = require("../util/config");
+const { v4: uuidv4 } = require("uuid");
+const nodemailer = require("nodemailer");
 
 function getAge(day, month, year) {
   let today = new Date();
@@ -15,6 +17,26 @@ function getAge(day, month, year) {
   }
   return age;
 }
+
+exports.SendMail = async (uid, msg) => {
+  const doc = await db.doc(`/users/${uid}`).get();
+  const handle = doc.data().handle;
+  let transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "mansflirts@gmail.com",
+      pass: "flirts2020",
+    },
+  });
+  const mailOptions = await transporter.sendMail({
+    from: '"mansflirts" <mansflirts@gmail.com>',
+    to: "thelovepearl@gmail.com",
+    subject: `Jauna ziņa no ${handle}`, // email subject
+    html: `<p style="font-size: 16px;">${msg}</p>
+            <br />
+        `, // email content in HTML
+  });
+};
 
 exports.buyGift = async (req, res) => {
   const FieldValue = admin.firestore.FieldValue;
@@ -33,37 +55,6 @@ exports.buyGift = async (req, res) => {
     res.status(400).json({ message: "Nepietiek monētu!" });
   }
 };
-// exports.buyGift = async (req, res) => {
-//   const FieldValue = admin.firestore.FieldValue;
-//   let uid = req.user.userId;
-//   let uid2 = req.body.uid2;
-//   let value = req.body.value;
-//   let giftUrl = req.body.giftUrl;
-
-//   const docRef = db.doc(`users/${uid}`);
-//   const doc = await docRef.get();
-//   const _docRef = db.doc(`users/${uid2}`);
-
-//   if (doc.data().coins >= value) {
-//     let handle = doc.data().handle;
-//     await docRef.update({
-//       coins: FieldValue.increment(-value),
-//     });
-//     await _docRef.set(
-//       {
-//         gifts: FieldValue.arrayUnion({
-//           giftUrl: giftUrl,
-//           senderName: handle,
-//           senderUid: uid,
-//         }),
-//       },
-//       { merge: true }
-//     );
-//     res.status(200).json();
-//   } else {
-//     res.status(400).json({ message: "Nepietiek monētu!" });
-//   }
-// };
 
 exports.updateAge = (req, res) => {
   let dob = req.body.dob;
@@ -90,14 +81,15 @@ exports.updateAge = (req, res) => {
     return res.json({ age: age, dob: dob });
   }
 };
-// Validate newUser
-exports.validUser = (req, res) => {
+//Signup user
+exports.signup = async (req, res) => {
   const newUser = {
     email: req.body.email,
     password: req.body.password,
     confirmPassword: req.body.confirmPassword,
     handle: req.body.handle,
     gender: req.body.gender,
+    lookingFor: req.body.lookingFor,
     checkedB: req.body.checkedB,
     day: req.body.day,
     month: req.body.month,
@@ -111,27 +103,19 @@ exports.validUser = (req, res) => {
 
   if (!valid) return res.status(400).json(errors);
 
-  return res.status(201).json({ message: "Viss OK" });
-};
-//Signup user
-exports.signup = (req, res) => {
-  const newUser = {
-    password: req.body.password,
-    confirmPassword: req.body.confirmPassword,
-    handle: req.body.handle,
-    gender: req.body.gender,
-    lookingFor: req.body.lookingFor,
-    checkedB: req.body.checkedB,
-    day: req.body.day,
-    month: req.body.month,
-    year: req.body.year,
-    userId: req.body.userId,
-  };
+  // Signup user
   const noImg = "no-img_512x512.png";
 
-  db.collection("users")
-    .get()
-    .then(() => {
+  admin
+    .auth()
+    .createUser({
+      email: newUser.email,
+      emailVerified: false,
+      password: newUser.password,
+      displayName: newUser.handle,
+      photoURL: `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${noImg}?alt=media`,
+    })
+    .then((userData) => {
       const userCredentials = {
         admin: false,
         handle: newUser.handle,
@@ -144,22 +128,22 @@ exports.signup = (req, res) => {
         coins: 120,
         dob: `${newUser.day}/${newUser.month}/${newUser.year}`,
         age: getAge(newUser.day, newUser.month, newUser.year),
-        userId: newUser.userId,
+        userId: userData.uid,
         userImages: [],
         blockedUsers: [],
+        amsgs: 0,
       };
-      return db
-        .collection("users")
-        .doc(`${newUser.userId}`)
-        .set(userCredentials);
+      return db.collection("users").doc(`${userData.uid}`).set(userCredentials);
     })
     .then(() => {
       return res.status(201).json({ message: "Viss OK" });
     })
-    .catch(() => {
-      return res
-        .status(500)
-        .json({ general: "Kaut kas nogāja greizi, lūdzu, mēģiniet vēlreiz" });
+    .catch((err) => {
+      if (err.code === "auth/email-already-exists") {
+        return res.status(400).json({ email: "E-pasts jau tiek izmantots" });
+      } else {
+        return res.status(400).json(err);
+      }
     });
 };
 // Google Facebook signup
@@ -194,6 +178,7 @@ exports.signupGoogleFB = (req, res) => {
           userId: newUser.userId,
           userImages: [],
           blockedUsers: [],
+          amsgs: 0,
         };
         return db
           .collection("users")
@@ -213,29 +198,15 @@ exports.signupGoogleFB = (req, res) => {
     return res.status(400).json({ age: "Jums jābūt vismaz 18 gadus vecam" });
   }
 };
-// Login user
-exports.login = (req, res) => {
-  const user = {
-    email: req.body.email,
-    password: req.body.password,
-  };
-  const { valid, errors } = validateLoginData(user);
-
-  if (!valid) {
-    return res.status(400).json(errors);
-  } else {
-    res.json({ message: "Viss OK" });
-  }
-};
 exports.loginA = (req, res) => {
   if (
-    !["tBwiHDv4NKfLQn77tKo8Ul5vM4h2", "8s5WMBOoj9MRNyyIGC3SVnRcAJ13"].includes(
+    ["hg5F4cE0KgYcWNgd2gXZ6UfFYq23", "eYeJTFFhDVfQIc73DH7qFOdVsNn2"].includes(
       req.user.userId
     )
   ) {
-    return res.status(400).json({ error: "Kļūme" });
-  } else {
     res.json({ message: "Viss OK" });
+  } else {
+    return res.status(400).json({ error: "Kļūme" });
   }
 };
 exports.checkA = (req, res) => {
@@ -252,31 +223,15 @@ exports.checkA = (req, res) => {
 // Add user details
 exports.addUserDetails = (req, res) => {
   let userDetails = reduceUserDetails(req.body);
-  if (
-    ["tBwiHDv4NKfLQn77tKo8Ul5vM4h2", "8s5WMBOoj9MRNyyIGC3SVnRcAJ13"].includes(
-      req.user.userId
-    )
-  ) {
-    db.doc(`/users/${req.body.userId}`)
-      .update(userDetails)
-      .then(() => {
-        return res.json({ message: "Informācija veiksmīgi pievienota" });
-      })
-      .catch((err) => {
-        console.error(err);
-        return res.status(500).json({ error: err.code });
-      });
-  } else {
-    db.doc(`/users/${req.user.userId}`)
-      .update(userDetails)
-      .then(() => {
-        return res.json({ message: "Informācija veiksmīgi pievienota" });
-      })
-      .catch((err) => {
-        console.error(err);
-        return res.status(500).json({ error: err.code });
-      });
-  }
+  db.doc(`/users/${req.user.userId}`)
+    .update(userDetails)
+    .then(() => {
+      return res.json({ message: "Informācija veiksmīgi pievienota" });
+    })
+    .catch((err) => {
+      console.error(err);
+      return res.status(500).json({ error: err.code });
+    });
 };
 // Get any user's details
 exports.getUserDetails = (req, res) => {
@@ -298,42 +253,39 @@ exports.getUserDetails = (req, res) => {
 };
 // Display all users in home
 exports.getAllUsers = (req, res) => {
-  const docRef = db.doc(`/users/${req.user.userId}`);
-  docRef
+  var lookingFor = req.body.lookingFor;
+  let query;
+  if (lookingFor === "any") {
+    query = db.collection("users");
+  } else {
+    query = db.collection("users").where("gender", "==", lookingFor);
+  }
+  let userData = [];
+  query
+    .orderBy("createdAt", "desc")
+    .limit(req.body.limit + 1)
     .get()
-    .then((doc) => {
-      return doc.data().lookingFor;
-    })
-    .then((lookingFor) => {
-      let query;
-      if (lookingFor === "any") {
-        query = db.collection("users");
-      } else {
-        query = db.collection("users").where("gender", "==", lookingFor);
-      }
-      let userData = [];
-      query
-        .orderBy("createdAt", "desc")
-        .limit(req.body.limit + 1)
-        .get()
-        .then((data) => {
-          data.forEach((doc) => {
-            userData.push({
-              userId: doc.id,
-              imageUrl: doc.data().imageUrl,
-              handle: doc.data().handle,
-              admin: doc.data().admin,
-              age: doc.data().age,
-              location: doc.data().location,
-              state: doc.data().state,
-            });
-          });
-          const index = userData.findIndex((x) => x.userId === req.user.userId);
-          if (index !== -1) userData.splice(index, 1);
-          else userData.splice(req.body.limit + 1, 1);
-
-          return res.json(userData);
+    .then((data) => {
+      data.forEach((doc) => {
+        userData.push({
+          userId: doc.id,
+          imageUrl: doc.data().imageUrl,
+          handle: doc.data().handle,
+          admin: doc.data().admin,
+          age: doc.data().age,
+          location: doc.data().location,
+          state: doc.data().state,
         });
+      });
+      const index = userData.findIndex((x) => x.userId === req.user.userId);
+      if (index !== -1) userData.splice(index, 1);
+      else userData.splice(req.body.limit + 1, 1);
+
+      return res.json(userData);
+    })
+    .catch((err) => {
+      console.log(err);
+      return res.status(500).json({ error: err.code });
     });
 };
 // Filters users in home
@@ -378,22 +330,6 @@ exports.filterUsers = (req, res) => {
       return res.status(500).json({ error: err.code });
     });
 };
-// Get own user details
-exports.getAuthenticatedUser = (req, res) => {
-  let userData = {};
-  db.doc(`/users/${req.user.userId}`)
-    .get()
-    .then((doc) => {
-      if (doc.exists) {
-        userData.credentials = doc.data();
-      }
-      return res.json(userData);
-    })
-    .catch((err) => {
-      console.error(err);
-      return res.status(500).json({ error: err.code });
-    });
-};
 // Upload profile image
 exports.uploadImage = (req, res) => {
   const BusBoy = require("busboy");
@@ -406,6 +342,8 @@ exports.uploadImage = (req, res) => {
   let imageToBeUploaded = {};
   let imageFileName;
   let imageExtension;
+
+  let generatedToken = uuidv4();
 
   busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
     if (mimetype !== "image/jpeg" && mimetype !== "image/png") {
@@ -425,25 +363,33 @@ exports.uploadImage = (req, res) => {
   busboy.on("finish", () => {
     admin
       .storage()
-      .bucket("gs://mansflirts")
+      .bucket("gs://mansflirts-5add7.appspot.com")
       .upload(imageToBeUploaded.filepath, {
         resumable: false,
         metadata: {
           metadata: {
             contentType: imageToBeUploaded.mimetype,
+            firebaseStorageDownloadTokens: generatedToken,
           },
         },
       })
+      .catch((err) => console.log(err))
       .then(async () => {
         const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${config.storageBucket}/o/${imageFileName}_512x512.${imageExtension}?alt=media`;
         const docRef = db.doc(`/users/${req.user.userId}`);
         const doc = await docRef.get();
         oldImageLink = doc.data().imageUrl;
-        return docRef.update({ imageUrl });
-      })
-      .then(() => {
-        return res.json({
-          oldImageLink,
+
+        const storageRef = admin
+          .storage()
+          .bucket("gs://mansflirts-5add7.appspot.com")
+          .file(`${imageFileName}_512x512.${imageExtension}`);
+
+        keepTrying(10, storageRef).then(async () => {
+          docRef.update({ imageUrl: imageUrl });
+          return res.json({
+            oldImageLink,
+          });
         });
       })
       .catch((err) => {
@@ -453,6 +399,28 @@ exports.uploadImage = (req, res) => {
   });
   busboy.end(req.rawBody);
 };
+
+function delay(t, v) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve.bind(null, v), t);
+  });
+}
+
+function keepTrying(triesRemaining, storageRef) {
+  if (triesRemaining < 0) {
+    return Promise.reject("out of tries");
+  }
+
+  return storageRef.exists().then((exists) => {
+    if (exists[0]) {
+      return exists;
+    } else {
+      return delay(2000).then(() => {
+        return keepTrying(triesRemaining - 1, storageRef);
+      });
+    }
+  });
+}
 
 exports.addPhotos = (req, res) => {
   // Add user photos v2.0
@@ -470,6 +438,8 @@ exports.addPhotos = (req, res) => {
   let imagesToUpload = [];
   let imageToAdd = {};
   let imageUrl = "";
+
+  let generatedToken = uuidv4();
 
   const docRef = db.doc(`users/${req.user.userId}`);
 
@@ -511,30 +481,49 @@ exports.addPhotos = (req, res) => {
 
   busboy.on("finish", async () => {
     let promises = [];
+    let imageUrls = [];
 
     imagesToUpload.forEach((imageToBeUploaded) => {
+      var storageRef = admin
+        .storage()
+        .bucket("gs://mansflirts-5add7.appspot.com")
+        .file(
+          `${imageToBeUploaded.imageFileName.replace(
+            "." + imageToBeUploaded.imageExtension,
+            ""
+          )}_512x512.${imageToBeUploaded.imageExtension}`
+        );
+
       imageUrl = `https://firebasestorage.googleapis.com/v0/b/${
         config.storageBucket
       }/o/${imageToBeUploaded.imageFileName.replace(
         "." + imageToBeUploaded.imageExtension,
         ""
       )}_512x512.${imageToBeUploaded.imageExtension}?alt=media`;
-      docRef.update({
-        userImages: FieldValue.arrayUnion(imageUrl),
-      });
-      promises.push(
-        admin
-          .storage()
-          .bucket("gs://mansflirts")
-          .upload(imageToBeUploaded.filepath, {
-            resumable: false,
+
+      admin
+        .storage()
+        .bucket("gs://mansflirts-5add7.appspot.com")
+        .upload(imageToBeUploaded.filepath, {
+          resumable: false,
+          metadata: {
             metadata: {
-              metadata: {
-                contentType: imageToBeUploaded.mimetype,
-              },
+              contentType: imageToBeUploaded.mimetype,
+              firebaseStorageDownloadTokens: generatedToken,
             },
+          },
+        });
+      imageUrls.push([imageUrl, storageRef]);
+    });
+
+    imageUrls.forEach((url) => {
+      keepTrying(10, url[1]).then(() => {
+        promises.push(
+          docRef.update({
+            userImages: FieldValue.arrayUnion(url[0]),
           })
-      );
+        );
+      });
     });
 
     try {
@@ -555,13 +544,15 @@ exports.removeImage = (req, res) => {
   var { Storage } = require("@google-cloud/storage");
   const storage = new Storage();
   const link = req.body.link;
-  const bucketName = "gs://mansflirts";
+  const bucketName = "gs://mansflirts-5add7.appspot.com";
   var imageName = "";
-  var i = 57;
+  var i = 75;
   while (link.charAt(i) !== "?") {
     imageName += link.charAt(i);
     i++;
   }
+  var filename = link.split("/").pop().split("?").shift();
+  console.log(filename);
   db.doc(`/users/${req.user.userId}`)
     .update({
       userImages: FieldValue.arrayRemove(link),
@@ -583,6 +574,7 @@ exports.createSession = async (req, res) => {
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     customer: req.body.customerId,
+    locale: "lv",
     line_items: [
       {
         price_data: {
@@ -650,10 +642,10 @@ exports.onSuccessPayment = (req, res) => {
 exports.deleteProfile = (req, res) => {
   var { Storage } = require("@google-cloud/storage");
   const storage = new Storage();
-  const bucket = storage.bucket("gs://mansflirts");
+  const bucket = storage.bucket("gs://mansflirts-5add7.appspot.com");
   const functions = require("firebase-functions");
   const stripe = require("stripe")(functions.config().stripe.token);
-  const uid = req.user.uid;
+  const uid = req.user.userId;
 
   db.collectionGroup("users2")
     .where("ref", "==", db.doc(`/users/${uid}`))
@@ -703,12 +695,12 @@ exports.deleteProfile = (req, res) => {
       db.doc(`users/${uid}`)
         .get()
         .then((doc) => {
-          var i = 57;
+          var i = 75;
           const images = doc.data().userImages;
           const profileImage = doc.data().imageUrl;
           if (
             !profileImage.includes(
-              "https://firebasestorage.googleapis.com/v0/b/mansflirts/o/no-img_512x512.png?alt=media"
+              "https://firebasestorage.googleapis.com/v0/b/mansflirts-5add7.appspot.com/o/no-img_512x512.png?alt=media"
             )
           ) {
             let profileImageName = "";
@@ -720,7 +712,7 @@ exports.deleteProfile = (req, res) => {
             file.delete();
           }
           images.forEach((image) => {
-            let j = 57;
+            let j = 75;
             let imageName = "";
             while (image.charAt(j) !== "?") {
               imageName += image.charAt(j);
@@ -765,8 +757,8 @@ exports.deleteProfile = (req, res) => {
 //         console.log(doc.id);
 //         console.log(imageUrl);
 //         if (
-//           doc.id !== "8s5WMBOoj9MRNyyIGC3SVnRcAJ13" &&
-//           doc.id !== "tBwiHDv4NKfLQn77tKo8Ul5vM4h2"
+//           doc.id !== "eYeJTFFhDVfQIc73DH7qFOdVsNn2" &&
+//           doc.id !== "hg5F4cE0KgYcWNgd2gXZ6UfFYq23"
 //         ) {
 //           if (imageUrl.charAt(59) === "e") {
 //             var startingString = "https://firebasestorage.googleapis.com/v0/b/";
@@ -782,39 +774,39 @@ exports.deleteProfile = (req, res) => {
 //     });
 // };
 
-exports.test = (req, res) => {
-  const FieldValue = admin.firestore.FieldValue;
-  db.collection("users")
-    .get()
-    .then((col) => {
-      col.forEach((doc) => {
-        var userImages = doc.data().userImages;
-        if (
-          doc.id !== "8s5WMBOoj9MRNyyIGC3SVnRcAJ13" &&
-          doc.id !== "tBwiHDv4NKfLQn77tKo8Ul5vM4h2"
-        )
-          if (userImages) {
-            console.log(doc.id);
-            userImages.forEach((image) => {
-              if (image.charAt(59) === "e") {
-                var startingString =
-                  "https://firebasestorage.googleapis.com/v0/b/";
-                var endingString = image.slice(61, image.length);
-                console.log(startingString + "mansflirts-5add7" + endingString);
-                db.doc(`users/${doc.id}`).update({
-                  userImages: FieldValue.arrayRemove(image),
-                });
-                db.doc(`users/${doc.id}`).update({
-                  userImages: FieldValue.arrayUnion(
-                    startingString + "mansflirts-5add7" + endingString
-                  ),
-                });
-              }
-            });
-          }
-        {
-        }
-      });
-      return res.json({ Ok: "" });
-    });
-};
+// exports.test = (req, res) => {
+//   const FieldValue = admin.firestore.FieldValue;
+//   db.collection("users")
+//     .get()
+//     .then((col) => {
+//       col.forEach((doc) => {
+//         var userImages = doc.data().userImages;
+//         if (
+//           doc.id !== "eYeJTFFhDVfQIc73DH7qFOdVsNn2" &&
+//           doc.id !== "hg5F4cE0KgYcWNgd2gXZ6UfFYq23"
+//         )
+//           if (userImages) {
+//             console.log(doc.id);
+//             userImages.forEach((image) => {
+//               if (image.charAt(59) === "e") {
+//                 var startingString =
+//                   "https://firebasestorage.googleapis.com/v0/b/";
+//                 var endingString = image.slice(61, image.length);
+//                 console.log(startingString + "mansflirts-5add7" + endingString);
+//                 db.doc(`users/${doc.id}`).update({
+//                   userImages: FieldValue.arrayRemove(image),
+//                 });
+//                 db.doc(`users/${doc.id}`).update({
+//                   userImages: FieldValue.arrayUnion(
+//                     startingString + "mansflirts-5add7" + endingString
+//                   ),
+//                 });
+//               }
+//             });
+//           }
+//         {
+//         }
+//       });
+//       return res.json({ Ok: "" });
+//     });
+// };
